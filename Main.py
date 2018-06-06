@@ -13,10 +13,14 @@ import functools
 
 Inf = float("inf")
 pi = 3.1415926535897932384626
+Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]  # This is the auxilliary joints
+End_Effector_Ind = [11, 17, 27, 34]                     # The link index of the end effectors
+Local_Extremeties = [0,0,1, 0 0 1, 1 0 0, 1 0 1];       # This 4 * 3 vector describes the local coordinate of the contact extremeties in their local coordinate
+Environment = [5.0, 0.0, 3.0, pi/2.0]                   # The environment is defined by the polar coordinate fashion: radius, angle
 
 def Dimension_Reduction(high_dim_obj):
     # The input to this function should be a np.array object
-    Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]
+    # This function will trim down the unnecessary joints for the current research problem
     low_dim_obj = np.delete(high_dim_obj, Aux_Link_Ind)
     return low_dim_obj
 
@@ -59,6 +63,7 @@ class MyGLViewer(GLSimulationProgram):
 
     def motionfunc(self,x,y,dx,dy):
         return GLSimulationProgram.motionfunc(self,x,y,dx,dy)
+
 def RobotInitState_Loader():
     # This function is used to load the robot_angle_init.txt and robot_angvel_init.txt into a numpy.ndarray instance
     with open("robot_angle_init.txt",'r') as robot_angle_file:
@@ -82,41 +87,9 @@ class Initial_Robotstate_Validation_Prob(probFun):
         self.hrp2_robot = hrp2_robot
         self.sigma_init = sigma_init
         self.robotstate_init = robotstate_init
-        self.End_Link_Index_Array = [11, 17, 27, 34] # These are: right foot, right hand, left foot, left hand
 
     def __callf__(self, x, y):
-        sigma_init = self.sigma_init
-        # Obj: The first function is the objective function
-        hrp2_robot = self.world.robot(0)
-        hrp2_robot.setConfig(x[0:36])
-        Init_Robotstate = self.robotstate_init
 
-        y[0] = 0.0
-        # Constraint 1: Distance constraint: This constraint is undertood in two folds:
-        #                                    1. The minimum distance has to be zero
-        #                                    2. The global orientations of certain end effectors have to "flat"
-
-        Rel_Dist = Relative_Dist(self.world, hrp2_robot, self.End_Link_Index_Array)
-        for i in range(1,5):
-            y[i] = Rel_Dist[i-1] * sigma_init[i-1]
-            # print y[i]
-        Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(hrp2_robot)
-        y[5] = sigma_init[0] * Right_Foot_Ori[0]
-        y[6] = sigma_init[1] * Left_Foot_Ori[0]
-
-        # Constraint 2: The global velocity of certain body parts has to be zero
-        End_Effector_Vel_Array = End_Effector_Vel(hrp2_robot, self.End_Link_Index_Array) # This function return a list of 4 elements
-        for i in range(0,4):
-            End_Effector_i_Vel = End_Effector_Vel_Array[i]
-            End_Effector_i_Vel_Cstr_Ind = 7+3*i
-            y[End_Effector_i_Vel_Cstr_Ind] = sigma_init[i] * End_Effector_i_Vel[0]
-            y[End_Effector_i_Vel_Cstr_Ind+1] = 0.0 * sigma_init[i] * End_Effector_i_Vel[1]
-            y[End_Effector_i_Vel_Cstr_Ind+2] = sigma_init[i] * End_Effector_i_Vel[2]
-
-
-        Robot_Link_Vertical_DisArray = Robot_Link_Vertical_Dis(hrp2_robot,self.End_Link_Index_Array)
-        for i in range(19,49):
-            y[i] = Robot_Link_Vertical_DisArray[i-19]
 
 
     def __callg__(self, x, y, G, row, col, rec, needg):
@@ -130,7 +103,7 @@ class Initial_Robotstate_Validation_Prob(probFun):
             col[:] = [0, 1, 0, 1]
 
 def End_Effector_Vel(hrp2_robot, End_Link_Index_Array):
-    # THis function is used to return the global translational velocity of the origin of the end effector
+    # This function is used to return the global translational velocity of the origin of the end effector
     End_Effector_Vel_Array = np.array([np.zeros(3),np.zeros(3),np.zeros(3),np.zeros(3)])
     End_Link_No_Index = -1
     for End_Link_Index in End_Link_Index_Array:
@@ -206,10 +179,11 @@ def Initial_Condition_Validation(world, sigma_init, robotstate_init):
 
     # Optimization problem setup
     Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, hrp2_robot, sigma_init, robotstate_init)
-    Initial_Condition_Opt.lb = lb
-    Initial_Condition_Opt.ub = ub
     Initial_Condition_Opt.xlb = xlb
     Initial_Condition_Opt.xub = xub
+    Initial_Condition_Opt.lb = lb
+    Initial_Condition_Opt.ub = ub
+
     cfg = snoptConfig()
     cfg.printLevel = 1
     cfg.printFile = "result.txt"
@@ -233,18 +207,58 @@ def Initial_Condition_Validation(world, sigma_init, robotstate_init):
     # # test plain fun
     # rst = directSolve(plainFun, x0, nf=None, xlb=xlb, xub=xub, clb=clb, cub=cub)
     # print(rst)
-def Relative_Dist(world, hrp2_robot,End_Link_Index_Array):
+
+def Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstate_opt):
+    # This function is used to generate the value of the objecttive function and the constraints
+    # The inputs to this functions:
+    #                             world -----------------> should be already updated by setConfig and setVelocity
+    # The output of this function are two np.array objects: ObjNCon_Bds, ObjNCon_Vals
+
+    # The constraints will be on the position and the velocity of the robot end effector extremeties
+
+    robotstate_violation = np.subtract(robotstate_init, robotstate_opt)       # This measures how large it is from the given robotstate to the optimal robotstate
+    y[0] = np.sum(np.square(robotstate_violation))
+
+    # Constraint 1: Distance constraint: This constraint is undertood in two folds:
+    #                                    1. The minimum distance has to be zero
+    #                                    2. The global orientations of certain end effectors have to "flat"
+
+    Rel_Dist = Relative_Dist(self.world, hrp2_robot, self.End_Link_Index_Array)
+    for i in range(1,5):
+        y[i] = Rel_Dist[i-1] * sigma_init[i-1]
+        # print y[i]
+        Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(hrp2_robot)
+        y[5] = sigma_init[0] * Right_Foot_Ori[0]
+        y[6] = sigma_init[1] * Left_Foot_Ori[0]
+
+        # Constraint 2: The global velocity of certain body parts has to be zero
+        End_Effector_Vel_Array = End_Effector_Vel(hrp2_robot, self.End_Link_Index_Array) # This function return a list of 4 elements
+        for i in range(0,4):
+            End_Effector_i_Vel = End_Effector_Vel_Array[i]
+            End_Effector_i_Vel_Cstr_Ind = 7+3*i
+            y[End_Effector_i_Vel_Cstr_Ind] = sigma_init[i] * End_Effector_i_Vel[0]
+            y[End_Effector_i_Vel_Cstr_Ind+1] = 0.0 * sigma_init[i] * End_Effector_i_Vel[1]
+            y[End_Effector_i_Vel_Cstr_Ind+2] = sigma_init[i] * End_Effector_i_Vel[2]
+
+            Robot_Link_Vertical_DisArray = Robot_Link_Vertical_Dis(hrp2_robot,self.End_Link_Index_Array)
+            for i in range(19,49):
+                y[i] = Robot_Link_Vertical_DisArray[i-19]
+
+def Relative_Dist(hrp2_robot):
     # This function is used to measure the relative distance between the robot to the nearest world feature
     # The environmental obstacles will be coded as terrians
-    NumOfTerrains = world.numTerrains()
-    # Here we only care about the four links: right foot ,right hand ,left foot, left hand so we extract them
-    # 17/11: [1 0 0] to measure the global rotation angle
-    Relative_Dist_Array = np.zeros(len(End_Link_Index_Array))
+    Relative_Dist_Array = np.zeros(len(End_Effector_Ind))
+    Nearest_Obs_Array = np.zeros(len(End_Effector_Ind))
     End_Link_No_Index = -1
-    for End_Link_Index in End_Link_Index_Array:
+    for End_Effector_Link_Index in End_Effector_Ind:
         End_Link_No_Index = End_Link_No_Index + 1
-        End_Link_i = hrp2_robot.link(End_Link_Index)
-        End_Link_i_Geometry = End_Link_i.geometry()
+        End_Link_i = hrp2_robot.link(End_Effector_Link_Index)
+        End_Link_IndexInExtre = [End_Link_No_Index*3:(End_Link_No_Index*3+2)]
+        End_Link_i_Extre_Loc = Local_Extremeties[End_Link_IndexInExtre]
+        End_Link_i_Extre_Pos = End_Link_i.getWorldPosition(End_Link_i_Extre_Loc)
+
+
+
         Relative_Dist_Temp_Array = np.zeros(NumOfTerrains)
         for Terrain_Index in range(0,NumOfTerrains):
             Terrain_i = world.terrain(Terrain_Index)
