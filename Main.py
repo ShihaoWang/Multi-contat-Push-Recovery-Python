@@ -14,13 +14,52 @@ import ipdb; ipdb.set_trace()
 
 Inf = float("inf")
 pi = 3.1415926535897932384626
-Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]  # This is the auxilliary joints
-End_Effector_Ind = [11, 17, 27, 34]                     # The link index of the end effectors
-Local_Extremeties = [0,0,1, 0 ,0 ,1, 1 ,0 ,0, 1 ,0 ,1];       # This 4 * 3 vector describes the local coordinate of the contact extremeties in their local coordinate
+Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]  # This is the auxilliary joints causing lateral motion
+Act_Link_Ind = [0, 2, 4, 8, 9, 10, 14, 15, 16, 22, 25, 29, 32]                                          # This is the active joints to be considered
+Tot_Link_No = len(Aux_Link_Ind) + len(Act_Link_Ind)
+End_Effector_Ind = [11, 11, 17, 17, 27, 34]                       # The link index of the end effectors
+Local_Extremeties = [0.1, 0, -0.1, -0.15 , 0, -0.1, 0.1, 0, -0.1, -0.15 , 0, -0.1, 0, 0, -0.22, 0, 0, -0.205]         # This 6 * 3 vector describes the local coordinate of the contact extremeties in their local coordinate
 Environment = np.array([-5.0, 0.0, 5.0, 0.0])                     # The environment is defined by the edge points on the falling plane
 Environment = np.append(Environment, [5.0, 0, 5.0, 3.0])          # The default are two walls: flat ground [(-5.0,0,0) to (5.0,0.0)] and the vertial wall [(5.0,0.0) to (5.0, 3.0)]
 Environment_Normal = np.array([0.0, 0.0])                                       # Surface normal of the obs surface
 mini = 0.05
+
+class Tree_Node:
+    def __init__(self, robot, sigma, robotstate):
+        self.sigma = sigma
+        self.robotstate = robotstate
+        self.KE = KE_fn(robotstate)
+
+        self.time = 0.0         # initialize to be zero
+        self.StateNDot_Traj = []
+        self.Ctrl_Traj = []
+        self.Contact_Force_Traj = []
+
+        self.self_time = 0.0
+        self.self_StateNDot_Traj = []
+        self.self_Ctrl_Traj = []
+        self.self_Contact_Force_Traj = []
+
+        self.End_Effector_Pos = End_Effector_Pos(robot)
+        self.End_Effector_Vel = End_Effector_Vel(robot)
+
+        self.Parent_Node = None
+        self.Children_Nodes = []
+
+    def Add_Child(self, Child_Node):
+        self.Children_Nodes.append(Child_Node)
+
+    def Add_Parent(self, Parent_Node):
+        self.Parent_Node = Parent_Node
+
+def Pop_Node(Frontier_Nodes, Frontier_Nodes_Cost):
+    # This fucntion is used to pop the node with the minimum kinetic energy out of the Total nodes
+    Minimum_Index = np.argmin(Frontier_Nodes_Cost)
+    Node = Frontier_Nodes[Minimum_Index]
+    del Frontier_Nodes[Minimum_Index]
+    del Frontier_Nodes_Cost[Minimum_Index]
+    return Node
+
 
 def Environment_Normal_Cal(Environment):
     # This function will calculate the surface normal given the Environment
@@ -40,6 +79,23 @@ def Dimension_Reduction(high_dim_obj):
     # This function will trim down the unnecessary joints for the current research problem
     low_dim_obj = np.delete(high_dim_obj, Aux_Link_Ind)
     return low_dim_obj
+def Dimension_Recovery(low_dim_obj):
+    high_dim_obj = np.zeros(Tot_Link_No)
+    for i in range(0,len(Act_Link_Ind)):
+        high_dim_obj[Act_Link_Ind[i]] = low_dim_obj[i]
+    return high_dim_obj
+def KE_fn(robotstate):
+    # Since the kinetic energy is not a built-in function, the external call will be made to get its value
+    file_object  = open("robotstate4KE.txt", 'w')
+    for i in range(0,26):
+        file_object.write(str(robotstate[i]))
+        file_object.write('\n')
+    file_object.close()
+    KE_cmd = './KE'  # Config2Text is a program used to rewrite the row-wise Klampt config file into a column wise txt file
+    os.system(KE_cmd)
+    with open("KE4robotstate.txt",'r') as KE_file:
+        T = map(float, KE_file)
+    return T[0]
 
 class MyGLViewer(GLSimulationProgram):
     def __init__(self,world):
@@ -106,18 +162,39 @@ class Initial_Robotstate_Validation_Prob(probFun):
         self.robotstate_init = robotstate_init
 
     def __callf__(self, x, y):
-        
-        ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(self.world, self.sigma_init, self.robotstate_init, robotstate_init)
+        world = self.world
+        robot = world.robot(0)
+        Robot_ConfigNVel_Update(robot, x)
+
+        ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, self.sigma_init, self.robotstate_init, x)
+        for i in range(0,len(ObjNConstraint_Val)):
+            y[i] = ObjNConstraint_Val[i]
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         # This function will be used if the analytic gradient is provided
-        y[0] = x[0] ** 2 + x[1] ** 2
-        y[1] = x[0] + x[1]
-        G[:2] = 2 * x
-        G[2:] = 1.0
-        if rec:
-            row[:] = [0, 0, 1, 1]
-            col[:] = [0, 1, 0, 1]
+        pass
+
+def Robot_ConfigNVel_Update(robot, x):
+    OptConfig_Low = x[0:len(x)/2]
+    OptVelocity_Low = x[len(x)/2:]
+
+    OptConfig_High = Dimension_Recovery(OptConfig_Low)
+    OptVelocity_High = Dimension_Recovery(OptVelocity_Low)
+
+    robot.setConfig(OptConfig_High)
+    robot.setVelocity(OptVelocity_High)
+
+def End_Effector_Pos(hrp2_robot):
+    End_Effector_Pos_Array = np.array([0,0])
+    End_Link_No_Index = -1
+    for End_Effector_Link_Index in End_Effector_Ind:
+        End_Link_No_Index = End_Link_No_Index + 1
+        End_Link_i = hrp2_robot.link(End_Effector_Link_Index)
+        End_Link_i_Extre_Loc = Local_Extremeties[End_Link_No_Index*3:End_Link_No_Index*3+3]
+        End_Link_i_Extre_Pos = End_Link_i.getWorldPosition(End_Link_i_Extre_Loc)
+        del End_Link_i_Extre_Pos[1]
+        End_Effector_Pos_Array = np.append(End_Effector_Pos_Array, End_Link_i_Extre_Pos)
+    return End_Effector_Pos_Array[2:]
 
 def End_Effector_Vel(hrp2_robot):
     # This function is used to return the global translational velocity of the origin of the end effector
@@ -160,6 +237,7 @@ def Initial_Condition_Validation(world, sigma_init, robotstate_init):
             xub[i] = dqmax[i-len(qmin)]
 
     # Optimization problem setup
+    Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, sigma_init, robotstate_init)
     Initial_Condition_Opt.xlb = xlb
     Initial_Condition_Opt.xub = xub
     ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstate_init)
@@ -167,29 +245,30 @@ def Initial_Condition_Validation(world, sigma_init, robotstate_init):
     ub = np.zeros(len(ObjNConstraint_Type))
     for i in range(0,len(ObjNConstraint_Type)):
         lb[i] = 0.0
-        if ObjNConstraint_Type[0]==0:
+        if ObjNConstraint_Type[i]==0:
             ub[i] = 0.0
         else:
             ub[i] = Inf
     Initial_Condition_Opt.lb = lb
     Initial_Condition_Opt.ub = ub
-    Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, hrp2_robot, sigma_init, robotstate_init)
-
 
     cfg = snoptConfig()
     cfg.printLevel = 1
     cfg.printFile = "result.txt"
     slv = solver(Initial_Condition_Opt, cfg)
     # rst = slv.solveRand()
-    rst = slv.solveGuess(x0)
+    rst = slv.solveGuess(robotstate_init)
 
-    file_object  = open("Optimized_Angle.config", 'w')
-    # print rst.sol
+    # Then it is to take out the optimized robot configuration
+    robot_angle_opt = np.zeros(Tot_Link_No)
+    for i in range(0,len(Act_Link_Ind)):
+        robot_angle_opt[Act_Link_Ind[i]] = rst.sol[i]
+
+    file_object  = open("robot_angle_opt.config", 'w')
     file_object.write("36\t")
-    for i in range(0,36):
-        file_object.write(str(rst.sol[i]))
+    for i in range(0,Tot_Link_No):
+        file_object.write(str(robot_angle_opt[i]))
         file_object.write(' ')
-
     file_object.close()
     return rst.sol
 
@@ -212,28 +291,32 @@ def Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstat
     ObjNConstraint_Val = [0]
 
     ObjNConstraint_Val.append(np.sum(np.square(robotstate_violation)))
+    ObjNConstraint_Val = ObjNConstraint_Val[1:]
     ObjNConstraint_Type = [1]                                                 # 1------------------> inequality constraint
     # Constraint 1: Distance constraint: This constraint is undertood in two folds:
     #                                    1. The "active" relative distance has to be zero
     #                                    2. The global orientations of certain end effectors have to be "flat"
     Rel_Dist, Nearest_Obs = Relative_Dist(world.robot(0))
-    for i in range(len(ObjNConstraint_Type),len(Rel_Dist) + len(ObjNConstraint_Type)):
-        ObjNConstraint_Val.append(Rel_Dist[i-1] * sigma_init[i-1])
-        ObjNConstraint_Type.append([0])
+    for i in range(0,len(Rel_Dist)):
+        ObjNConstraint_Val.append(Rel_Dist[i] * sigma_init[i])
+        ObjNConstraint_Type.append(0)
+        ObjNConstraint_Val.append((not sigma_init[i]) *(Rel_Dist[i] - mini))
+        ObjNConstraint_Type.append(1)
 
-    Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(hrp2_robot)
-    ObjNConstraint_Val.append(sigma_init[0] * Right_Foot_Ori[0])
-    ObjNConstraint_Type.append([0])
-    ObjNConstraint_Val.append(sigma_init[1] * Left_Foot_Ori[0])
-    ObjNConstraint_Type.append([0])
+    Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(world.robot(0))
+    ObjNConstraint_Val.append(sigma_init[0] * Right_Foot_Ori[2])
+    ObjNConstraint_Type.append(0)
+    ObjNConstraint_Val.append(sigma_init[1] * Left_Foot_Ori[2])
+    ObjNConstraint_Type.append(0)
 
     # Constraint 2: The global velocity of certain body parts has to be zero
-    End_Effector_Vel_Array = End_Effector_Vel(hrp2_robot) # This function return a list of 8 elements
-    End_Effector_Vel_Matrix = np.diag([sigma_init[0],sigma_init[0],sigma_init[1],sigma_init[1],sigma_init[2],sigma_init[2],sigma_init[3],sigma_init[3]])
+    End_Effector_Vel_Array = End_Effector_Vel(world.robot(0)) # This function return a list of 8 elements
+    End_Effector_Vel_Matrix = np.diag([sigma_init[0],sigma_init[0],sigma_init[0],sigma_init[0], sigma_init[1],sigma_init[1], sigma_init[1],sigma_init[1], sigma_init[2],sigma_init[2],sigma_init[3],sigma_init[3]])
     End_Effector_Vel_Constraint = np.dot(End_Effector_Vel_Matrix, End_Effector_Vel_Array)
-    for i in range(len(ObjNConstraint_Type),len(End_Effector_Vel_Constraint) + len(ObjNConstraint_Type)):
+    for i in range(0,len(End_Effector_Vel_Constraint)):
         ObjNConstraint_Val.append(End_Effector_Vel_Constraint[i])
-        ObjNConstraint_Type.append([0])
+        ObjNConstraint_Type.append(0)
+
     return ObjNConstraint_Val, ObjNConstraint_Type
 
 def Relative_Dist(hrp2_robot):
@@ -313,9 +396,9 @@ def main():
 
 
     sigma_init = np.array([1,1,0,0])            # This is the initial contact status:  1__------> contact constraint is active,
-                                            #                                      0--------> contact constraint is inactive
-                                            #                                   [left foot, right foot, left hand, right hand]
-
+                                                #                                      0--------> contact constraint is inactive
+                                                #                                   [left foot, right foot, left hand, right hand]
+    sigma_init = Sigma_Modi_In(sigma_init)
     angle_init, angvel_init = RobotInitState_Loader()   # This is the initial condition: joint angle and joint angular velocities
     # The following two are used to reduce the auxilliary joints
     angle_init = Dimension_Reduction(angle_init)
@@ -331,18 +414,54 @@ def main():
     Environment_Normal_Cal(Environment)
 
     # Now it is the validation of the feasibility of the given initial condition
-    Robotstate_Opt = Initial_Condition_Validation(world, sigma_init, robotstate_init)
+    robotstate_init_Opted = Initial_Condition_Validation(world, sigma_init, robotstate_init)
+    # The output is the optimized feasible initial condition for the robot: 26 by 1 list
+
+    Robot_ConfigNVel_Update(world.robot(0),robotstate_init_Opted)
+    RootNode = Tree_Node(world.robot(0), sigma_init, robotstate_init_Opted)
+
+    All_Nodes = np.array([RootNode])
+
+    Frontier_Nodes = np.array([RootNode])
+    Frontier_Nodes_Cost = np.array([RootNode.KE])
+    while len(Frontier_Nodes)>0:
+        # /**
+        # * For the current node, first is the Node_Self_Opt to optimize a motion while maintain the current mode (the fly in the air case will not be considered)
+        # * 						if this does not work, then expand the current node into the adjacent nodes and figure out whether there exists a path to reach that contact mode
+        # * Description
+        # */
+        Soln_Flag = 0
+        Node_i = Pop_Node(Frontier_Nodes, Frontier_Nodes_Cost)
 
 
-
-    print Contact_ForceNTorque_Cal(world,Opt_Robotstate[0:36], Opt_Robotstate[36:])
-    print "Gotcha"
 
 
     # MyGLViewer(world)
 
     # viewer = MyGLViewer(sys.argv[1:])
     # viewer.run()
+def Nodes_Optimization_fn(Node_i, Node_i_child, Opt_Flag):
+    # // This function will optimize the joint trajectories to minimize the robot kinetic energy while maintaining a smooth transition fashion
+    
+
+
+def Sigma_Modi_In(sigma_i):
+    sigma_full = np.zeros(len(End_Effector_Ind))
+    sigma_full[0] = sigma_i[0]
+    sigma_full[1] = sigma_i[0]
+    sigma_full[2] = sigma_i[1]
+    sigma_full[3] = sigma_i[1]
+    sigma_full[4] = sigma_i[2]
+    sigma_full[5] = sigma_i[3]
+    return sigma_full
+
+def Sigma_Modi_De(sigma_i):
+    sigma_full = np.zeros(4)
+    sigma_full[0] = sigma_init[0]
+    sigma_full[1] = sigma_init[2]
+    sigma_full[2] = sigma_init[4]
+    sigma_full[3] = sigma_init[5]
+    return sigma_full
 
 if __name__ == "__main__":
     main()
