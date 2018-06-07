@@ -10,13 +10,30 @@ from trajOptLib import trajOptCollocProblem
 from trajOptLib.snoptWrapper import directSolve
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
 import functools
+import ipdb; ipdb.set_trace()
 
 Inf = float("inf")
 pi = 3.1415926535897932384626
 Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]  # This is the auxilliary joints
 End_Effector_Ind = [11, 17, 27, 34]                     # The link index of the end effectors
-Local_Extremeties = [0,0,1, 0 0 1, 1 0 0, 1 0 1];       # This 4 * 3 vector describes the local coordinate of the contact extremeties in their local coordinate
-Environment = [5.0, 0.0, 3.0, pi/2.0]                   # The environment is defined by the polar coordinate fashion: radius, angle
+Local_Extremeties = [0,0,1, 0 ,0 ,1, 1 ,0 ,0, 1 ,0 ,1];       # This 4 * 3 vector describes the local coordinate of the contact extremeties in their local coordinate
+Environment = np.array([-5.0, 0.0, 5.0, 0.0])                     # The environment is defined by the edge points on the falling plane
+Environment = np.append(Environment, [5.0, 0, 5.0, 3.0])          # The default are two walls: flat ground [(-5.0,0,0) to (5.0,0.0)] and the vertial wall [(5.0,0.0) to (5.0, 3.0)]
+Environment_Normal = np.array([0.0, 0.0])                                       # Surface normal of the obs surface
+mini = 0.05
+
+def Environment_Normal_Cal(Environment):
+    # This function will calculate the surface normal given the Environment
+    global Environment_Normal
+    Obs_Num = len(Environment)/4
+    for i in range(0,Obs_Num):
+        Environment_i = Environment[4*i:4*i+4]
+        x1 = Environment_i[0:2]
+        x2 = Environment_i[2:4]
+        delta = x2 - x1
+        tang_i = np.arctan2(delta[1], delta[0])
+        Environment_Normal = np.append(Environment_Normal, [np.cos(tang_i + pi/2.0), np.sin(tang_i + pi/2.0)])
+    Environment_Normal = Environment_Normal[2:]
 
 def Dimension_Reduction(high_dim_obj):
     # The input to this function should be a np.array object
@@ -79,18 +96,18 @@ def RobotInitState_Loader():
 
 class Initial_Robotstate_Validation_Prob(probFun):
     # This is the class type used for the initial condition validation optimization problem
-    def __init__(self, world, hrp2_robot, sigma_init, robotstate_init):
+    def __init__(self, world, sigma_init, robotstate_init):
         nx = len(robotstate_init)
-        probFun.__init__(self, nx, 49)
+        ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstate_init)
+        probFun.__init__(self, nx, len(ObjNConstraint_Type))
         self.grad = False
         self.world = world
-        self.hrp2_robot = hrp2_robot
         self.sigma_init = sigma_init
         self.robotstate_init = robotstate_init
 
     def __callf__(self, x, y):
-
-
+        
+        ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(self.world, self.sigma_init, self.robotstate_init, robotstate_init)
 
     def __callg__(self, x, y, G, row, col, rec, needg):
         # This function will be used if the analytic gradient is provided
@@ -102,53 +119,18 @@ class Initial_Robotstate_Validation_Prob(probFun):
             row[:] = [0, 0, 1, 1]
             col[:] = [0, 1, 0, 1]
 
-def End_Effector_Vel(hrp2_robot, End_Link_Index_Array):
+def End_Effector_Vel(hrp2_robot):
     # This function is used to return the global translational velocity of the origin of the end effector
-    End_Effector_Vel_Array = np.array([np.zeros(3),np.zeros(3),np.zeros(3),np.zeros(3)])
+    End_Effector_Vel_Array = np.array([0,0])
     End_Link_No_Index = -1
-    for End_Link_Index in End_Link_Index_Array:
+    for End_Effector_Link_Index in End_Effector_Ind:
         End_Link_No_Index = End_Link_No_Index + 1
-        End_Link_i = hrp2_robot.link(End_Link_Index)
-        End_Effector_Vel_Array[End_Link_No_Index] = End_Link_i.getVelocity()
-    return End_Effector_Vel_Array
-
-def Contact_ForceNTorque_Cal(world,robot_config, robot_velocity):
-    # This function is used to get the contact force from the world
-    # The first two steps are to update the World with the robot configuration
-    hrp2_robot = world.robot(0)
-    hrp2_robot.setConfig(robot_config)
-    hrp2_robot.setVelocity(robot_velocity)
-    End_Link_Index_Array = [11, 17, 27, 34]
-    HRP2_Simulator = Simulator(world)
-    print HRP2_Simulator.getActualConfig(0)
-    HRP2_Simulator.enableContactFeedbackAll()
-    HRP2_Simulator.simulate(0.005)
-    # Actually there are only four forces need to be considered
-    End_Link_Force =   np.array([np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3)])
-    End_Link_Torque =  np.array([np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3)])
-    End_Link_Contact = np.array([np.zeros(7), np.zeros(7), np.zeros(7), np.zeros(7)])
-    End_Effector_Index = -1
-    for j in End_Link_Index_Array:
-        End_Effector_Id = hrp2_robot.link(j).getID()
-        End_Effector_Index = End_Effector_Index + 1
-        for i in range(world.numTerrains()):
-            Terrain_Id = world.terrain(i).getID()
-            #you could loop over a selective set of id pairs rather than i and j, if you wanted...
-            f = [0, 0, 0]
-            t = [0, 0, 0]
-            if HRP2_Simulator.inContact(Terrain_Id,End_Effector_Id) == True:
-                # print "Touching bodies:"
-                f = HRP2_Simulator.contactForce(End_Effector_Id,Terrain_Id)
-                t = HRP2_Simulator.contactTorque(End_Effector_Id, Terrain_Id)
-                ct = HRP2_Simulator.getContacts(End_Effector_Id, Terrain_Id)
-                End_Link_Force[End_Effector_Index] = f
-                End_Link_Torque[End_Effector_Index] = t
-                End_Lik_Origin_Pos = hrp2_robot.link(j).getWorldPosition([0,0,0])
-                End_Link_Contact_i = ct[0]
-                End_Lik_Normal = End_Link_Contact_i[3:6]
-                End_Lik_Friction = [End_Link_Contact_i[6]]
-                End_Link_Contact[End_Effector_Index] = End_Lik_Origin_Pos + End_Lik_Normal + End_Lik_Friction
-    return End_Link_Force, End_Link_Torque, End_Link_Contact
+        End_Link_i = hrp2_robot.link(End_Effector_Link_Index)
+        End_Link_i_Extre_Loc = Local_Extremeties[End_Link_No_Index*3:End_Link_No_Index*3+3]
+        End_Link_i_Extre_Vel = End_Link_i.getPointVelocity(End_Link_i_Extre_Loc)
+        del End_Link_i_Extre_Vel[1]
+        End_Effector_Vel_Array = np.append(End_Effector_Vel_Array, End_Link_i_Extre_Vel)
+    return End_Effector_Vel_Array[2:]
 
 def Initial_Condition_Validation(world, sigma_init, robotstate_init):
     # The inputs to this function is the WorldModel, initial contact mode, and the initial state
@@ -178,11 +160,21 @@ def Initial_Condition_Validation(world, sigma_init, robotstate_init):
             xub[i] = dqmax[i-len(qmin)]
 
     # Optimization problem setup
-    Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, hrp2_robot, sigma_init, robotstate_init)
     Initial_Condition_Opt.xlb = xlb
     Initial_Condition_Opt.xub = xub
+    ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstate_init)
+    lb = np.zeros(len(ObjNConstraint_Type))
+    ub = np.zeros(len(ObjNConstraint_Type))
+    for i in range(0,len(ObjNConstraint_Type)):
+        lb[i] = 0.0
+        if ObjNConstraint_Type[0]==0:
+            ub[i] = 0.0
+        else:
+            ub[i] = Inf
     Initial_Condition_Opt.lb = lb
     Initial_Condition_Opt.ub = ub
+    Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, hrp2_robot, sigma_init, robotstate_init)
+
 
     cfg = snoptConfig()
     cfg.printLevel = 1
@@ -217,32 +209,32 @@ def Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstat
     # The constraints will be on the position and the velocity of the robot end effector extremeties
 
     robotstate_violation = np.subtract(robotstate_init, robotstate_opt)       # This measures how large it is from the given robotstate to the optimal robotstate
-    y[0] = np.sum(np.square(robotstate_violation))
+    ObjNConstraint_Val = [0]
 
+    ObjNConstraint_Val.append(np.sum(np.square(robotstate_violation)))
+    ObjNConstraint_Type = [1]                                                 # 1------------------> inequality constraint
     # Constraint 1: Distance constraint: This constraint is undertood in two folds:
-    #                                    1. The minimum distance has to be zero
-    #                                    2. The global orientations of certain end effectors have to "flat"
+    #                                    1. The "active" relative distance has to be zero
+    #                                    2. The global orientations of certain end effectors have to be "flat"
+    Rel_Dist, Nearest_Obs = Relative_Dist(world.robot(0))
+    for i in range(len(ObjNConstraint_Type),len(Rel_Dist) + len(ObjNConstraint_Type)):
+        ObjNConstraint_Val.append(Rel_Dist[i-1] * sigma_init[i-1])
+        ObjNConstraint_Type.append([0])
 
-    Rel_Dist = Relative_Dist(self.world, hrp2_robot, self.End_Link_Index_Array)
-    for i in range(1,5):
-        y[i] = Rel_Dist[i-1] * sigma_init[i-1]
-        # print y[i]
-        Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(hrp2_robot)
-        y[5] = sigma_init[0] * Right_Foot_Ori[0]
-        y[6] = sigma_init[1] * Left_Foot_Ori[0]
+    Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(hrp2_robot)
+    ObjNConstraint_Val.append(sigma_init[0] * Right_Foot_Ori[0])
+    ObjNConstraint_Type.append([0])
+    ObjNConstraint_Val.append(sigma_init[1] * Left_Foot_Ori[0])
+    ObjNConstraint_Type.append([0])
 
-        # Constraint 2: The global velocity of certain body parts has to be zero
-        End_Effector_Vel_Array = End_Effector_Vel(hrp2_robot, self.End_Link_Index_Array) # This function return a list of 4 elements
-        for i in range(0,4):
-            End_Effector_i_Vel = End_Effector_Vel_Array[i]
-            End_Effector_i_Vel_Cstr_Ind = 7+3*i
-            y[End_Effector_i_Vel_Cstr_Ind] = sigma_init[i] * End_Effector_i_Vel[0]
-            y[End_Effector_i_Vel_Cstr_Ind+1] = 0.0 * sigma_init[i] * End_Effector_i_Vel[1]
-            y[End_Effector_i_Vel_Cstr_Ind+2] = sigma_init[i] * End_Effector_i_Vel[2]
-
-            Robot_Link_Vertical_DisArray = Robot_Link_Vertical_Dis(hrp2_robot,self.End_Link_Index_Array)
-            for i in range(19,49):
-                y[i] = Robot_Link_Vertical_DisArray[i-19]
+    # Constraint 2: The global velocity of certain body parts has to be zero
+    End_Effector_Vel_Array = End_Effector_Vel(hrp2_robot) # This function return a list of 8 elements
+    End_Effector_Vel_Matrix = np.diag([sigma_init[0],sigma_init[0],sigma_init[1],sigma_init[1],sigma_init[2],sigma_init[2],sigma_init[3],sigma_init[3]])
+    End_Effector_Vel_Constraint = np.dot(End_Effector_Vel_Matrix, End_Effector_Vel_Array)
+    for i in range(len(ObjNConstraint_Type),len(End_Effector_Vel_Constraint) + len(ObjNConstraint_Type)):
+        ObjNConstraint_Val.append(End_Effector_Vel_Constraint[i])
+        ObjNConstraint_Type.append([0])
+    return ObjNConstraint_Val, ObjNConstraint_Type
 
 def Relative_Dist(hrp2_robot):
     # This function is used to measure the relative distance between the robot to the nearest world feature
@@ -253,24 +245,32 @@ def Relative_Dist(hrp2_robot):
     for End_Effector_Link_Index in End_Effector_Ind:
         End_Link_No_Index = End_Link_No_Index + 1
         End_Link_i = hrp2_robot.link(End_Effector_Link_Index)
-        End_Link_IndexInExtre = [End_Link_No_Index*3:(End_Link_No_Index*3+2)]
-        End_Link_i_Extre_Loc = Local_Extremeties[End_Link_IndexInExtre]
+        End_Link_i_Extre_Loc = Local_Extremeties[End_Link_No_Index*3:End_Link_No_Index*3+3]
         End_Link_i_Extre_Pos = End_Link_i.getWorldPosition(End_Link_i_Extre_Loc)
+        # Then the job is to compute the relative distance
+        End_Link_i_Extre_dist, End_Link_i_Extre_obs_ind = Single_End_Effector_Obs_Dist(End_Link_i_Extre_Pos)
+        Relative_Dist_Array[End_Link_No_Index] = End_Link_i_Extre_dist
+        Nearest_Obs_Array[End_Link_No_Index] = End_Link_i_Extre_obs_ind
+    return Relative_Dist_Array, Nearest_Obs_Array
 
+def Single_End_Effector_Obs_Dist(rPos):
+    # This function is used to calculate the relative distance between the robot end effectors and the obstacles
+    # due to the simplification of the motion on the y plane here we only consider about the position of the end effector in x-z plane
+    rPos = np.array([rPos[0],rPos[2]])
+    Relative_Dist = [100000]           # Given a highest value for initialization
+    for i in range(0,len(Environment)/4):
+        Obs_Edge = Environment[4*i:4*i+2]
+        Edge2rPos = np.subtract(rPos, Obs_Edge)
+        Relative_Dist_i = np.dot(Edge2rPos, Environment_Normal[2*i:2*i+2])
+        Relative_Dist.append(Relative_Dist_i)
+    Relative_Dist = Relative_Dist[1:]
+    return np.min(Relative_Dist), np.argmin(Relative_Dist)
 
-
-        Relative_Dist_Temp_Array = np.zeros(NumOfTerrains)
-        for Terrain_Index in range(0,NumOfTerrains):
-            Terrain_i = world.terrain(Terrain_Index)
-            Terrain_i_Geometry = Terrain_i.geometry()
-            Relative_Dist_Temp_Array[Terrain_Index] = End_Link_i_Geometry.distance(Terrain_i_Geometry)
-        Relative_Dist_Array[End_Link_No_Index] = Relative_Dist_Temp_Array.min()
-    return Relative_Dist_Array
 def Foot_Orientation(hrp2_robot):
-    # This function returns the orientation of the four end effectors of the robot
+    # This function returns the orientation of the foot end effectors of the robot
     # Here we only care about the four links: right foot ,right hand ,left foot, left hand so we extract them
-    Foot_Index_Array = [11,17]
-    # 17/11: [1 0 0] to measure the global rotation angle
+    Foot_Index_Array = End_Effector_Ind[0:2]
+
     End_Effector_Orientation_Array = np.zeros(len(Foot_Index_Array))
 
     Rigt_foot_link = hrp2_robot.link(Foot_Index_Array[0])
@@ -311,6 +311,7 @@ def main():
 
     # The first step is to validate the feasibility of the given initial condition
 
+
     sigma_init = np.array([1,1,0,0])            # This is the initial contact status:  1__------> contact constraint is active,
                                             #                                      0--------> contact constraint is inactive
                                             #                                   [left foot, right foot, left hand, right hand]
@@ -327,9 +328,12 @@ def main():
             robotstate_init[i] = angle_init[i]
         else:
             robotstate_init[i] = angvel_init[i-len(angle_init)]
+    Environment_Normal_Cal(Environment)
 
     # Now it is the validation of the feasibility of the given initial condition
-    Opt_Robotstate = Initial_Condition_Validation(world, sigma_init, robotstate_init)
+    Robotstate_Opt = Initial_Condition_Validation(world, sigma_init, robotstate_init)
+
+
 
     print Contact_ForceNTorque_Cal(world,Opt_Robotstate[0:36], Opt_Robotstate[36:])
     print "Gotcha"
@@ -339,16 +343,6 @@ def main():
 
     # viewer = MyGLViewer(sys.argv[1:])
     # viewer.run()
-def Robot_Link_Vertical_Dis(hrp2_robot, End_Link_Index_Array):
-    # This function is used to return the vertical coordinate of local origin of the robot link
-    Robot_Link_Vertical_Dis_Array = np.zeros(30)
-    for i in range(6,36):
-        hrp2_robot_link_i = hrp2_robot.link(i)
-        hrp2_robot_link_i_pos = hrp2_robot_link_i.getWorldPosition([0,0,1.1])
-        # print hrp2_robot_link_i_pos
-        # print hrp2_robot_link_i.getWorldPosition([0,0,0])
-        Robot_Link_Vertical_Dis_Array[i-6] = hrp2_robot_link_i_pos[2]
-    return Robot_Link_Vertical_Dis_Array
 
 if __name__ == "__main__":
     main()
