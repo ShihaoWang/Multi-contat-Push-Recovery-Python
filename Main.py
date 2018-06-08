@@ -10,7 +10,7 @@ from trajOptLib.snoptWrapper import directSolve
 from trajOptLib.libsnopt import snoptConfig, probFun, solver
 import functools
 from math import sin, cos, sqrt
-import ipdb; ipdb.set_trace()
+import ipdb;
 Inf = float("inf")
 pi = 3.1415926535897932384626
 Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]  # This is the auxilliary joints causing lateral motion
@@ -219,10 +219,8 @@ class Seed_Robotstate_Optimization_Prob(probFun):
 def Robot_ConfigNVel_Update(robot, x):
     OptConfig_Low = x[0:len(x)/2]
     OptVelocity_Low = x[len(x)/2:]
-
     OptConfig_High = Dimension_Recovery(OptConfig_Low)
     OptVelocity_High = Dimension_Recovery(OptVelocity_Low)
-
     robot.setConfig(OptConfig_High)
     robot.setVelocity(OptVelocity_High)
 def get_End_Effector_Pos(hrp2_robot):
@@ -400,19 +398,169 @@ def Foot_Orientation(hrp2_robot):
     return Rigt_foot_Ori,Left_foot_Ori
 def Nodes_Optimization_fn(world, Node_i, Node_i_child):
     # // This function will optimize the joint trajectories to minimize the robot kinetic energy while maintaining a smooth transition fashion
-    Opt_Flag, Opt_Seed = Seed_Guess_Gene(world, Node_i, Node_i_child)
+    Seed_Flag, T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Gene(world, Node_i, Node_i_child)
+    if Seed_Flag == 1:
+        xlb, xub = Robotstate_Bounds(world, robotstate_init)
+
+        # Optimization problem setup
+        Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, sigma_init, robotstate_init)
+        Initial_Condition_Opt.xlb = xlb
+        Initial_Condition_Opt.xub = xub
+        ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstate_init)
+        lb, ub = ObjNCon_Bds(ObjNConstraint_Type)
+        Initial_Condition_Opt.lb = lb
+        Initial_Condition_Opt.ub = ub
+
+        cfg = snoptConfig()
+        cfg.printLevel = 1
+        cfg.printFile = "result.txt"
+        slv = solver(Initial_Condition_Opt, cfg)
+        # rst = slv.solveRand()
+        rst = slv.solveGuess(robotstate_init)
+        # Then it is to take out the optimized robot configuration
+        robot_angle_opt = np.zeros(Tot_Link_No)
+        for i in range(0,len(Act_Link_Ind)):
+            robot_angle_opt[Act_Link_Ind[i]] = rst.sol[i]
+
+        file_object  = open("robot_angle_opt.config", 'w')
+        file_object.write("36\t")
+        for i in range(0,Tot_Link_No):
+            file_object.write(str(robot_angle_opt[i]))
+            file_object.write(' ')
+        file_object.close()
+        return rst.sol
 
 def Seed_Guess_Gene(world, Node_i, Node_i_child):
     # This function is used to generate the intial guess used for the optimization
-
+    T = 0.5
     # The first step is to generate a feasible configuration that can satisfy the contact mode in the node i child
     Seed_Flag, Seed_Config = Seed_Guess_Gene_Robotstate(world, Node_i, Node_i_child)
+    StateNDot_Traj = np.zeros(shape = (len(Seed_Config), Grids))
+    Ctrl_Traj = np.zeros(shape = (10, Grids))
+    Contact_Force_Traj = np.zeros(shape = (2*len(End_Effector_Ind), Grids))
+
+    StateNDot_Coeff = np.zeros(shape = (4*len(Seed_Config), Grids-1))               # 4*26 x Grids-1
+    Ctrl_Coeff = np.zeros(shape = (2*10, Grids-1))                                  # 4*10 x Grids-1
+    Contact_Force_Coeff = np.zeros(shape = (4*len(End_Effector_Ind), Grids-1))      # 4*12 x Grids-1
     if Seed_Flag == 1:
+        # 1. Initialization of the StateNdot
+        # For each variable, conduct a linspace interpolation
+        for i in range(0, len(Seed_Config)):
+            StateNDot_i = np.linspace(Node_i.robotstate[i], Seed_Config[i], Grids)
+            StateNDot_Traj[i] = StateNDot_i[0:]
+        # The initialzation for values of stateNdot has been complete now it is time to compute the coefficients for the cubic spline y(s) = a*s^3 + b*s^2 + c*s + d over T
+        for i in range(0,Grids-1):
+            for j in range(0, len(Seed_Config)/2):
+                x_init = StateNDot_Traj.item(j,i)
+                x_end = StateNDot_Traj.item(j,i+1)
+                xdot_init = StateNDot_Traj.item(j+len(Seed_Config)/2,i)
+                xdot_end = StateNDot_Traj.item(j+len(Seed_Config)/2,i+1)
+                pos_a, pos_b, pos_c, pos_d = CubicSpline_Coeff(T, x_init, x_end, xdot_init, xdot_end)
+                _, _, xddot_init = CubicSpline_PosVelAcc4(T,pos_a,pos_b,pos_c,pos_d,0)
+                _, _, xddot_end = CubicSpline_PosVelAcc4(T,pos_a,pos_b,pos_c,pos_d,1)
+                vel_a, vel_b, vel_c, vel_d = CubicSpline_Coeff(T, xdot_init, xdot_end, xddot_init, xddot_end)
+                StateNDot_Coeff[8*j:(8*j+8),i] = [pos_a, pos_b, pos_c, pos_d, vel_a, vel_b, vel_c, vel_d]
+        #2. Initialization of the coefficients for Control and Contact Force
+        hrp2_robot = world.robot(0)                         # Now hrp2_robot is an instance of RobotModel type
+        for i in range(0,Grids-1):
+            Pos_init, Vel_init, Acc_init = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0)
+            Contact_Force_init, Control_init = Contact_ForceNControl_initialization(world.robot(0), Pos_init, Vel_init, Acc_init)
+            Pos_end, Vel_end, Acc_end = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 1)
+            Contact_Force_end, Control_end = Contact_ForceNControl_initialization(world.robot(0), Pos_end, Vel_end, Acc_end)
+            Contact_Force_Traj[:,i] = Contact_Force_init
+            Contact_Force_Traj[:,i+1] = Contact_Force_end
+            Ctrl_Traj[:,i] = Control_init
+            Ctrl_Traj[:,i+1] = Control_end
+            for j in range(0,len(Contact_Force_end)):
+                cf_a, cf_b = Linear_Coeff(Contact_Force_init[j], Contact_Force_end[j])
+                Contact_Force_Coeff[2*j] = cf_a
+                Contact_Force_Coeff[2*j+1] = cf_b
+            for z in range(0,len(Control_end)):
+                ctrl_a, ctrl_b = Linear_Coeff(Control_init[z], Control_end[z])
+                Ctrl_Coeff[2*z] = ctrl_a
+                Ctrl_Coeff[2*z+1] = ctrl_b
 
+    return Seed_Flag, T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff
+def Linear_Coeff(value_a, value_b):
+    b = value_a
+    a = value_b - value_a
+    return a,b
+def Contact_ForceNControl_initialization(hrup2_robot, Pos, Vel, Acc):
+    Acc = Dimension_Recovery(Acc)
+    robotstate = np.append(Pos, Vel)
+    Robot_ConfigNVel_Update(hrp2_robot, robotstate)
+    D_q = np.asarray(hrp2_robot.getMassMatrix())
+    C_q_qdot = np.asarray(hrp2_robot.getCoriolisForces())
+    G_q = np.asarray(hrp2_robot.getGravityForces((0,0,-9.8)))
+    End_Effector_Jac = End_Effector_Jacobian(hrp2_robot)           # 12 x 36
+    End_Effector_JacTrans = np.transpose(End_Effector_Jac)
 
+    RHS = np.add(np.add(np.dot(D_q, Acc),C_q_qdot), G_q)
+    temp_mat = np.identity(Tot_Link_No)
+    LHS = Matrix_Stack(End_Effector_JacTrans, temp_mat)
+    Contact_ForceNControl = np.dot(np.linalg.pinv(LHS), RHS)
+    Contact_Force = Contact_ForceNControl[0:12]
+    Control = Dimension_Reduction(Contact_ForceNControl[12:])
+    return Contact_Force, Control
+def Matrix_Stack(A, B):
+    # This function is used to stack the matrices
+    Row_No_A, Col_No_A = A.shape
+    Row_No_B, Col_No_B = B.shape
 
-
-
+    Stack_Mat = np.zeros(shape = (Row_No_A, Col_No_A + Col_No_B))
+    for i in range(0,Col_No_A + Col_No_B):
+        if i<Col_No_A:
+            Stack_Mat[:,i] = A[:,i]
+        else:
+            Stack_Mat[:,i] = B[:,i-Col_No_A]
+    return Stack_Mat
+def End_Effector_Jacobian(hrp2_robot):
+    # This function is used to get the Jaociban matrix
+    End_Effector_Jac_Array = np.zeros(shape = (2*len(End_Effector_Ind), Tot_Link_No))
+    End_Link_No_Index = -1
+    # ipdb.set_trace()
+    for End_Effector_Link_Index in End_Effector_Ind:
+        End_Link_No_Index = End_Link_No_Index + 1
+        End_Link_i = hrp2_robot.link(End_Effector_Link_Index)
+        End_Link_i_Extre_Loc = Local_Extremeties[End_Link_No_Index*3:End_Link_No_Index*3+3]
+        End_Link_i_Extre_Jac = End_Link_i.getPositionJacobian(End_Link_i_Extre_Loc)
+        End_Effector_Jac_Array[2*End_Link_No_Index] = np.asarray(End_Link_i_Extre_Jac[0])
+        End_Effector_Jac_Array[2*End_Link_No_Index+1] = np.asarray(End_Link_i_Extre_Jac[2])
+    return End_Effector_Jac_Array
+def StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, Grid_Ind, s):
+    # Here Grid_Ind denotes which Grid we are talking about and s is a value between 0 and 1
+    StateNDot_Coeff_i = StateNDot_Coeff[:,Grid_Ind]
+    Pos = np.zeros([len(Act_Link_Ind)])
+    Vel = np.zeros([len(Act_Link_Ind)])
+    Acc = np.zeros([len(Act_Link_Ind)])
+    for i in range(0,len(Act_Link_Ind)):
+        StateNDot_Coeff_i = StateNDot_Coeff[8*i:(8*i+8),Grid_Ind]
+        Pos_i, Vel_i, Acc_i = CubicSpline_PosVelAcc8(T, StateNDot_Coeff_i[0], StateNDot_Coeff_i[1], StateNDot_Coeff_i[2], StateNDot_Coeff_i[3], \
+                                                        StateNDot_Coeff_i[4], StateNDot_Coeff_i[5], StateNDot_Coeff_i[6], StateNDot_Coeff_i[7], s)
+        Pos[i] = Pos_i
+        Vel[i] = Vel_i
+        Acc[i] = Acc_i
+    return Pos, Vel, Acc
+def CubicSpline_PosVelAcc8(T, x_a, x_b, x_c, x_d, xdot_a, xdot_b, xdot_c, xdot_d, s):
+    Pos = x_a*s*s*s + x_b*s*s + x_c*s + x_d
+    Vel =  xdot_a*s*s*s + xdot_b*s*s + xdot_c*s + xdot_d
+    Acc = (3*xdot_a*s*s + 2*xdot_b*s + xdot_c)/T
+    return Pos, Vel, Acc
+def CubicSpline_Coeff(T, x_init, x_end, xdot_init, xdot_end):
+    # This funciton is used to calculate the coefficients of the cubic spliine given two edge values: x and xdot
+    # y(s) = a*s^3 + b*s^2 + c*s + d over dt
+    a = 2*x_init - 2*x_end - T*x_init + T*xdot_end + T*xdot_init
+    b = 3*x_end - 3*x_init + 2*T*x_init - T*xdot_end - 2*T*xdot_init
+    c = -T*(x_init - xdot_init)
+    d = x_init
+    return a, b, c, d
+def CubicSpline_PosVelAcc4(T,a,b,c,d,s):
+    # This function is used to calcualte the position, velocity and acceleration given the spline coefficients
+    # Here T is the duration constant, s is the path variable
+    Pos = a*s*s*s + b*s*s + c*s + d
+    Vel = (3*a*s*s + 2*b*s + c)/T
+    Acc = (6*a*s+2*b)/(T*T)
+    return Pos, Vel, Acc
 def Seed_Guess_Gene_Robotstate(world, Node_i, Node_i_child):
     # This function is used to generate a desired configuration that satisfies the goal contact mode
     # There are two possibilities: one is self_opt, the other is connectivity_opt
@@ -513,17 +661,10 @@ def main():
     # This system call will rewrite the robot_angle_init.config into the robot_angle_init.txt
     # However, the initiali angular velocities can be customerized by the user in robot_angvel_init.txt
 
-    # # Now world has already read the world file
-    # hrp2_robot = world.robot(0)  # Now hrp2_robot is an instance of RobotModel type
-    # D_q = hrp2_robot.getMassMatrix()
-    # C_q_qdot = hrp2_robot.getCoriolisForces()
-    # G_q = hrp2_robot.getGravityForces((0,0,-9.8))
-    #
-
     # The first step is to validate the feasibility of the given initial condition
 
 
-    sigma_init = np.array([1,0,0,0])            # This is the initial contact status:  1__------> contact constraint is active,
+    sigma_init = np.array([1,1,0,0])            # This is the initial contact status:  1__------> contact constraint is active,
                                                 #                                      0--------> contact constraint is inactive
                                                 #                                   [left foot, right foot, left hand, right hand]
     sigma_init = Sigma_Modi_In(sigma_init)
