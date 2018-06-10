@@ -11,10 +11,12 @@ from trajOptLib.libsnopt import snoptConfig, probFun, solver
 import functools
 from math import sin, cos, sqrt
 import ipdb;
+# ipdb.set_trace()
 Inf = float("inf")
 pi = 3.1415926535897932384626
 Aux_Link_Ind = [1, 3, 5, 6, 7, 11, 12, 13, 17, 18, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35]  # This is the auxilliary joints causing lateral motion
 Act_Link_Ind = [0, 2, 4, 8, 9, 10, 14, 15, 16, 22, 25, 29, 32]                                          # This is the active joints to be considered
+Ctrl_Link_Ind = Act_Link_Ind[3:]
 Tot_Link_No = len(Aux_Link_Ind) + len(Act_Link_Ind)
 End_Effector_Ind = [11, 11, 17, 17, 27, 34]                       # The link index of the end effectors
 Local_Extremeties = [0.1, 0, -0.1, -0.15 , 0, -0.1, 0.1, 0, -0.1, -0.15 , 0, -0.1, 0, 0, -0.22, 0, 0, -0.205]         # This 6 * 3 vector describes the local coordinate of the contact extremeties in their local coordinate
@@ -23,8 +25,12 @@ Environment = np.append(Environment, [5.0, 0, 5.0, 3.0])          # The default 
 Environment_Normal = np.array([0.0, 0.0])                         # Surface normal of the obs surface
 Environment_Tange = np.array([0.0,0.0])                           # Surface tangential vector
 mini = 0.05
-Grids = 20              # This is the grid number for each segment
+Grids = 10              # This is the grid number for each segment
 mu = 0.5                # default friction coefficients
+robotstate_lb = [0]
+robotstate_ub = [0]
+control_lb = [0]
+control_ub = [0]
 class Tree_Node:
     def __init__(self, robot, sigma, robotstate):
         self.sigma = sigma
@@ -194,7 +200,6 @@ class Initial_Robotstate_Validation_Prob(probFun):
         ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, self.sigma_init, self.robotstate_init, x)
         for i in range(0,len(ObjNConstraint_Val)):
             y[i] = ObjNConstraint_Val[i]
-
     def __callg__(self, x, y, G, row, col, rec, needg):
         # This function will be used if the analytic gradient is provided
         pass
@@ -222,9 +227,9 @@ class Seed_Robotstate_Optimization_Prob(probFun):
         pass
 class Real_Optimization_fn(probFun):
     # This is the class type used for the optimization for the seed robot state generation
-    def __init__(self, world, Node_i, Node_i_child):
-        nx = len(Node_i.robotstate)
-        ObjNConstraint_Val, ObjNConstraint_Type = Real_ObjNConstraint(world, Node_i, Node_i_child, Node_i.robotstate)
+    def __init__(self, world, Node_i, Node_i_child, Opt_Seed):
+        nx = len(Opt_Seed)
+        ObjNConstraint_Val, ObjNConstraint_Type = Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed)
         probFun.__init__(self, nx, len(ObjNConstraint_Type))
         self.grad = False
         self.world = world
@@ -233,8 +238,6 @@ class Real_Optimization_fn(probFun):
 
     def __callf__(self, x, y):
         world = self.world
-        robot = world.robot(0)
-        Robot_ConfigNVel_Update(robot, x)
         ObjNConstraint_Val, ObjNConstraint_Type = Real_ObjNConstraint(world, self.Node_i, self.Node_i_child, x)
         for i in range(0,len(ObjNConstraint_Val)):
             y[i] = ObjNConstraint_Val[i]
@@ -275,11 +278,22 @@ def get_End_Effector_Vel(hrp2_robot):
 def Initial_Condition_Validation(world, sigma_init, robotstate_init):
     # The inputs to this function is the WorldModel, initial contact mode, and the initial state
     # The output is the feasible robotstate
-    xlb, xub = Robotstate_Bounds(world, robotstate_init)
+    global robotstate_lb
+    global robotstate_ub
+    global control_lb
+    global control_ub
+
+    robotstate_xlb, robotstate_xub = Robotstate_Bounds(world, robotstate_init)
+    robotstate_lb = robotstate_xlb
+    robotstate_ub = robotstate_xub
+
+    control_xlb, control_xub = Control_Bounds(world,len(Ctrl_Link_Ind))
+    control_lb = control_xlb
+    control_ub = control_xub
     # Optimization problem setup
     Initial_Condition_Opt = Initial_Robotstate_Validation_Prob(world, sigma_init, robotstate_init)
-    Initial_Condition_Opt.xlb = xlb
-    Initial_Condition_Opt.xub = xub
+    Initial_Condition_Opt.xlb = robotstate_lb
+    Initial_Condition_Opt.xub = robotstate_ub
     ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstate_init)
     lb, ub = ObjNCon_Bds(ObjNConstraint_Type)
     Initial_Condition_Opt.lb = lb
@@ -308,42 +322,40 @@ def Robotstate_ObjNConstraint_Init(world, sigma_init, robotstate_init, robotstat
     # The inputs to this functions:
     #                             world -----------------> should be already updated by setConfig and setVelocity
     # The output of this function are two np.array objects: ObjNCon_Bds, ObjNCon_Vals
-
     # The constraints will be on the position and the velocity of the robot end effector extremeties
-
     robotstate_violation = np.subtract(robotstate_init, robotstate_opt)       # This measures how large it is from the given robotstate to the optimal robotstate
     ObjNConstraint_Val = [0]
     ObjNConstraint_Val.append(np.sum(np.square(robotstate_violation)))
     ObjNConstraint_Val = ObjNConstraint_Val[1:]
     ObjNConstraint_Type = [1]                   # 1------------------> inequality constraint
-    ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world, sigma_init, ObjNConstraint_Val, ObjNConstraint_Type)
+    ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world.robot(0), sigma_init, ObjNConstraint_Val, ObjNConstraint_Type)
     return ObjNConstraint_Val, ObjNConstraint_Type
-def Distance_Velocity_Constraint(world, sigma_i, ObjNConstraint_Val, ObjNConstraint_Type):
+def Distance_Velocity_Constraint(robot, sigma_i, ObjNConstraint_Val, ObjNConstraint_Type):
     # Constraint 1: Distance constraint: This constraint is undertood in two folds:
     #                                    1. The "active" relative distance has to be zero
     #                                    2. The global orientations of certain end effectors have to be "flat"
-    Rel_Dist, Nearest_Obs = Relative_Dist(world.robot(0))
+    Rel_Dist, Nearest_Obs = Relative_Dist(robot)
     for i in range(0,len(Rel_Dist)):
         ObjNConstraint_Val.append(Rel_Dist[i] * sigma_i[i])
         ObjNConstraint_Type.append(0)
         ObjNConstraint_Val.append((not sigma_i[i]) *(Rel_Dist[i] - mini))
         ObjNConstraint_Type.append(1)
 
-        Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(world.robot(0))
-        ObjNConstraint_Val.append(sigma_i[0] * Right_Foot_Ori[2])
-        ObjNConstraint_Type.append(0)
-        ObjNConstraint_Val.append(sigma_i[1] * Left_Foot_Ori[2])
-        ObjNConstraint_Type.append(0)
+    Right_Foot_Ori, Left_Foot_Ori = Foot_Orientation(robot)
+    ObjNConstraint_Val.append(sigma_i[0] * Right_Foot_Ori[2])
+    ObjNConstraint_Type.append(0)
+    ObjNConstraint_Val.append(sigma_i[1] * Left_Foot_Ori[2])
+    ObjNConstraint_Type.append(0)
 
-        # Constraint 2: The global velocity of certain body parts has to be zero
-        End_Effector_Vel_Array = get_End_Effector_Vel(world.robot(0)) # This function return a list of 8 elements
-        End_Effector_Vel_Matrix = np.diag([sigma_i[0], sigma_i[0], sigma_i[0], sigma_i[0], \
-                                           sigma_i[1], sigma_i[1], sigma_i[1], sigma_i[1], \
-                                           sigma_i[2], sigma_i[2], sigma_i[3], sigma_i[3]])
-        End_Effector_Vel_Constraint = np.dot(End_Effector_Vel_Matrix, End_Effector_Vel_Array)
-        for i in range(0,len(End_Effector_Vel_Constraint)):
-            ObjNConstraint_Val.append(End_Effector_Vel_Constraint[i])
-            ObjNConstraint_Type.append(0)
+    # Constraint 2: The global velocity of certain body parts has to be zero
+    End_Effector_Vel_Array = get_End_Effector_Vel(robot) # This function return a list of 8 elements
+    End_Effector_Vel_Matrix = np.diag([sigma_i[0], sigma_i[0], sigma_i[0], sigma_i[0], \
+                                       sigma_i[1], sigma_i[1], sigma_i[1], sigma_i[1], \
+                                       sigma_i[2], sigma_i[2], sigma_i[3], sigma_i[3]])
+    End_Effector_Vel_Constraint = np.dot(End_Effector_Vel_Matrix, End_Effector_Vel_Array)
+    for j in range(0,len(End_Effector_Vel_Constraint)):
+        ObjNConstraint_Val.append(End_Effector_Vel_Constraint[j])
+        ObjNConstraint_Type.append(0)
     return ObjNConstraint_Val, ObjNConstraint_Type
 def Robotstate_ObjNConstraint_Seed(world, Node_i, Node_i_child, robotstate):
     # This function is used to generate the value of the objecttive function and the constraints
@@ -354,8 +366,8 @@ def Robotstate_ObjNConstraint_Seed(world, Node_i, Node_i_child, robotstate):
     ObjNConstraint_Val = ObjNConstraint_Val[1:]
     ObjNConstraint_Type = [1]                                                 # 1------------------> inequality constraint
 
-    ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world, Node_i_child.sigma, ObjNConstraint_Val, ObjNConstraint_Type)
-    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(world, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
+    ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world.robot(0), Node_i_child.sigma, ObjNConstraint_Val, ObjNConstraint_Type)
+    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(world.robot(0), Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
     return ObjNConstraint_Val, ObjNConstraint_Type
 def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
     # This function is used to generate the value of the objecttive function and the constraints
@@ -365,172 +377,204 @@ def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
     Pos_ref = Node_i.robotstate[0:len(Act_Link_Ind)]
     Vel_ref = Node_i.robotstate[len(Act_Link_Ind):]
 
+    Ctrl_ref = Control_Coeff2Vec(T, Ctrl_Coeff, 0, 0)
+    Contact_Force_ref = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, 0, 0)
+
     ObjNConstraint_Val = [0]
     ObjNConstraint_Type = [1]                                                 # 1------------------> inequality constraint
-    KE_tot = np.zeros(Grids)
+
+    KE_tot = [Node_i.KE]
     if np.max(np.subtract(Node_i_child.sigma, Node_i.sigma)) == 1:
         sigma_tran = Node_i.sigma
         sigma_goal = Node_i_child.sigma
-    else
+    else:
         sigma_tran = Node_i_child.sigma
         sigma_goal = Node_i_child.sigma
+    if np.array_equal(Node_i.sigma, Node_i_child.sigma) == True:
+        KE_Const = 0.1
+    else:
+        KE_Const = 0.2 * Node_i.KE
 
     for i in range(0,Grids-1):
         # Extract the coefficients for these Grids-1 splines
         # For init and end on this segment
 
-        # 1. Constraint at both Edge
-        Pos_init, Vel_init, Acc_init, VelfromPos_init= StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0)
-        temp_result = Pos_init - Pos_ref
-        for j in range(0,len(temp_result)):
-            ObjNConstraint_Val.append(temp_result[j])
+        Pos_init, Vel_init, Acc_init, VelfromPos_init = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0)
+        Pos_mid,  Vel_mid,  Acc_mid,  VelfromPos_mid  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0.5)
+        Pos_end,  Vel_end,  Acc_end,  VelfromPos_end  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 1)
+
+        robotstate_init = List_Append(Pos_init, Vel_init)
+        robotstate_mid = List_Append(Pos_mid, Vel_mid)
+        robotstate_end = List_Append(Pos_end, Vel_end)
+
+        KE_i = KE_fn(robotstate_end)
+        KE_tot.append(KE_i)
+
+        Ctrl_init = Control_Coeff2Vec(T, Ctrl_Coeff, i, 0)
+        Ctrl_mid = Control_Coeff2Vec(T, Ctrl_Coeff, i, 0.5)
+        Ctrl_end = Control_Coeff2Vec(T, Ctrl_Coeff, i, 1)
+
+        Contact_Force_init = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 0)
+        Contact_Force_mid = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 0.5)
+        Contact_Force_end = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 1)
+
+        # 1. Constraint on smoothness at both edges
+        # Robotstate, Control and Control force
+        for j in range(0,len(Pos_init)):
+            ObjNConstraint_Val.append(Pos_init[j] - Pos_ref[j])
             ObjNConstraint_Type.append(0)
-        temp_result = Vel_init - Vel_ref
-        for j in range(0,len(temp_result)):
-            ObjNConstraint_Val.append(temp_result[j])
+            ObjNConstraint_Val.append(Vel_init[j] - Vel_ref[j])
             ObjNConstraint_Type.append(0)
+            ObjNConstraint_Val.append(VelfromPos_init[j] - Vel_init[j])
+            ObjNConstraint_Type.append(0)
+            ObjNConstraint_Val.append(Pos_init[j] - robotstate_lb[j])
+            ObjNConstraint_Type.append(1)
+            ObjNConstraint_Val.append(robotstate_ub[j] - Pos_init[j])
+            ObjNConstraint_Type.append(1)
+            ObjNConstraint_Val.append(Vel_init[j] - robotstate_lb[j+len(Act_Link_Ind)])
+            ObjNConstraint_Type.append(1)
+            ObjNConstraint_Val.append(robotstate_ub[j+len(Act_Link_Ind)] - Vel_init[j])
+            ObjNConstraint_Type.append(1)
+            if j<len(Ctrl_Link_Ind):
+                ObjNConstraint_Val.append(Ctrl_init[j] - Ctrl_ref[j])
+                ObjNConstraint_Type.append(0)
+                ObjNConstraint_Val.append(Ctrl_init[j] - control_lb[j])
+                ObjNConstraint_Type.append(1)
+                ObjNConstraint_Val.append(control_ub[j] - Ctrl_init[j])
+                ObjNConstraint_Type.append(1)
+            if j<2*len(End_Effector_Ind):
+                ObjNConstraint_Val.append(Contact_Force_init[j] - Contact_Force_ref[j])
+                ObjNConstraint_Type.append(1)
+
         # New references get updated
-        Pos_end, Vel_end, Acc_end, VelfromPos_end = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 1)
         Pos_ref = Pos_end
         Vel_ref = Vel_end
-        Acc_ref = Acc_end
-        for j in range(0,len(temp_result)):
-            ObjNConstraint_Val.append(Vel_init[j] - VelfromPos_init[j])
-            ObjNConstraint_Type.append(0)
-            ObjNConstraint_Val.append(Vel_end[j] - VelfromPos_end[j])
-            ObjNConstraint_Type.append(0)
+        Ctrl_ref = Ctrl_end
+        Contact_Force_ref = Contact_Force_end
 
-        if i<Grids-2:
-            Ctrl_end = Control_Coeff2Vec(T, Ctrl_Coeff, i, 1)
-            Contact_Force_end = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 1)
-            Ctrl_init = Control_Coeff2Vec(T, Ctrl_Coeff, i+1, 0)
-            Contact_Force_init = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i+1, 0)
-            temp_result = Ctrl_init - Ctrl_end
-            for j in range(0,len(temp_result)):
-                ObjNConstraint_Val.append(temp_result[j])
-                ObjNConstraint_Type.append(0)
-            temp_result = Contact_Force_init - Contact_Force_end
-            for j in range(0,len(temp_result)):
-                ObjNConstraint_Val.append(temp_result[j])
-                ObjNConstraint_Type.append(0)
+        # 2. Dynamics Constraints at both start and end
+        # 3. Complementarity constraints: Distance!
+        # 4. Complementarity constraints: Contact Force!
+        # 5. Contact force feasibility constraints: normal force should be positive and the friction cone constraint has to be satisfied
+        # 6. Contact maintenance constraint: the previous unchanged active constraint have to be satisfied
+        # All the above constraint will be taken care of separaetly on init, mid and end
+        # Init stage:
+        Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_init, Vel_init, Acc_init, Ctrl_init, Contact_Force_init, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
+        # # # Mid stage:
+        # # Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_mid, Vel_mid, Acc_mid, Ctrl_mid, Contact_Force_mid, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
+        # # End stage:
+        # if i<Grids-2:
+        #     Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_end, Vel_end, Acc_end, Ctrl_end, Contact_Force_end, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
+        # else:
+        #     Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_end, Vel_end, Acc_end, Ctrl_end, Contact_Force_end, sigma_goal, ObjNConstraint_Val, ObjNConstraint_Type)
 
-        # 2. Dynamics Constraints at both start, middle and end
-        temp_result = Dynamics_Constraint(robot, T, Pos_init, Vel_init, Acc_init, Ctrl_Coeff, Contact_Force_Coeff, Grid_Ind, 0)
-        for j in range(0,len(temp_result)):
-            ObjNConstraint_Val.append(temp_result[j])
-            ObjNConstraint_Type.append(0)
+    # Final computation is to update the objective function value and add constraint
+    ObjNConstraint_Val[0] = Obj_Cal(KE_tot, T)
+    ObjNConstraint_Val.append(KE_Const - KE_tot[0])
+    ObjNConstraint_Type.append(1)
 
-        Pos_mid, Vel_mid, Acc_mid, VelfromPos_mid= StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0.5)
-        temp_result = Dynamics_Constraint(robot, T, Pos_mid, Vel_mid, Acc_mid, Ctrl_Coeff, Contact_Force_Coeff, Grid_Ind, 0.5)
-        for j in range(0,len(temp_result)):
-            ObjNConstraint_Val.append(temp_result[j])
-            ObjNConstraint_Type.append(0)
+    # ipdb.set_trace()
+    return ObjNConstraint_Val, ObjNConstraint_Type
+def Real_ObjNConstraint_Stage(robot, Node_i, Node_i_child, T, Pos, Vel, Acc, Ctrl, Contact_Force, sigma, ObjNConstraint_Val, ObjNConstraint_Type):
+    # This function will compute the 2 to 6 constraints
+    # 2. Dynamics Constraints at both start and end
+    temp_result = Dynamics_Constraint(robot, T, Pos, Vel, Acc, Ctrl, Contact_Force)
+    for j in range(0,len(temp_result)):
+        ObjNConstraint_Val.append(temp_result[j])
+        ObjNConstraint_Type.append(0)
 
-        temp_result = Dynamics_Constraint(robot, T, Pos_init, Vel_init, Acc_init, Ctrl_Coeff, Contact_Force_Coeff, Grid_Ind, 1)
-        for j in range(0,len(temp_result)):
-            ObjNConstraint_Val.append(temp_result[j])
-            ObjNConstraint_Type.append(0)
+    # 3. Complementarity constraints: Distance!
+    ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(robot, sigma, ObjNConstraint_Val, ObjNConstraint_Type)
 
-        # 3. Pos, Vel should be in valid ranges
-        robotstate_init = np.append(Pos_init, Vel_init)
-        robotstate_mid = np.append(Pos_mid, Vel_mid)
-        robotstate_end = np.append(Pos_end, Vel_end)
-        xlb, xub = Robotstate_Bounds(world, robotstate_end)
-        for i in range(0,len(xlb)):
-            ObjNConstraint_Val.append(robotstate_init[i] - xlb[i])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(robotstate_mid[i] - xlb[i])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(robotstate_end[i] - xlb[i])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(-robotstate_init[i] + xub[i])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(-robotstate_mid[i] + xub[i])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(-robotstate_end[i] + xub[i])
-            ObjNConstraint_Type.append(1)
+    # 4. Complementarity constraints: Contact Force!
+    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Complem_Constraint(Contact_Force, sigma, ObjNConstraint_Val, ObjNConstraint_Type)
 
-        # 4. Complementarity constraints: Distance!
-        Robot_ConfigNVel_Update(robot, robotstate_init)
-        ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        Robot_ConfigNVel_Update(robot, robotstate_end)
-        if i<Grids-2:
-            ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        else:
-            ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(world, sigma_goal, ObjNConstraint_Val, ObjNConstraint_Type)
+    # 5. Contact force feasibility constraints: normal force should be positive and the friction cone constraint has to be satisfied
+    robotstate = List_Append(Pos, Vel)
+    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Feasibility_Constraint(robot, robotstate, Contact_Force, ObjNConstraint_Val, ObjNConstraint_Type)
 
-        # 5. Complementarity constraints: Contact Force!
-        Ctrl_init = Control_Coeff2Vec(T, Ctrl_Coeff, i, 0)
-        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Complem_Constraint(Ctrl_init, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        Ctrl_end = Control_Coeff2Vec(T, Ctrl_Coeff, i, 1)
-        if i<Grids-2:
-            ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Complem_Constraint(Ctrl_end, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        else:
-            ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Complem_Constraint(Ctrl_end, sigma_goal, ObjNConstraint_Val, ObjNConstraint_Type)
-
-        # 6. Contact force feasibility constraints: normal force should be positive and the friction cone constraint has to be satisfied
-        Contact_Force_init = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 0)
-        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Feasibility_Constraint(robot, robotstate_init, Contact_Force_init, ObjNConstraint_Val, ObjNConstraint_Type)
-        Contact_Force_end = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 1)
-        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Feasibility_Constraint(robot, robotstate_end, Contact_Force_end, ObjNConstraint_Val, ObjNConstraint_Type)
-
-        # 7. Contact maintenance constraint: the previous unchanged constraint have to be satisfied
-        Robot_ConfigNVel_Update(robot, robotstate_init)
-        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(world, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
-        Robot_ConfigNVel_Update(robot, robotstate_end)
-        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(world, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
+    # 6. Contact maintenance constraint: the previous unchanged active constraint have to be satisfied
+    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(robot, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
 
     return ObjNConstraint_Val, ObjNConstraint_Type
-
+def Obj_Cal(KE_tot, T):
+    # This function is used to calculate the quadratic sum of the rate of the change of the kinetic energy
+    dt = T/(Grids - 1) * 1.0
+    Obj = 0.0
+    for i in range(0, len(KE_tot)-1):
+        Obj = Obj + (KE_tot[i+1] - KE_tot[i]) * (KE_tot[i+1] - KE_tot[i])/(dt * dt)
+    return Obj
+def List_Append(List_A, List_B):
+    List_C = [0]
+    for i in range(0,len(List_A)):
+        List_C.append(List_A[i])
+    for i in range(0,len(List_B)):
+        List_C.append(List_B[i])
+    return List_C[1:]
 def Contact_Force_Feasibility_Constraint(robot, robotstate, Contact_Force, ObjNConstraint_Val, ObjNConstraint_Type):
-    Normal_Force, Tang_Force = Contact_Force_Proj(robot, robotstate, Contact_Force)
-    for i in range(0, len(Normal_Force)):
-        ObjNConstraint_Val.append(Normal_Force[i])
+    Norm_Force = [0]
+    Tang_Force = [0]
+    Normal_Force_i, Tang_Force_i = Contact_Force_Proj(robot, robotstate, Contact_Force)
+    Norm_Force.append(Normal_Force_i[0] + Normal_Force_i[1]);
+    Tang_Force.append(Tang_Force_i[0] + Tang_Force_i[1]);
+    Norm_Force.append(Normal_Force_i[2] + Normal_Force_i[3])
+    Tang_Force.append(Tang_Force_i[2] + Tang_Force_i[3])
+    Norm_Force.append(Normal_Force_i[4])
+    Tang_Force.append(Tang_Force_i[4])
+    Norm_Force.append(Normal_Force_i[5])
+    Tang_Force.append(Tang_Force_i[5])
+    Norm_Force = Norm_Force[1:]
+    Tang_Force = Tang_Force[1:]
+    for i in range(0, len(Norm_Force)):
+        ObjNConstraint_Val.append(Norm_Force[i])
         ObjNConstraint_Type.append(1)
-    Norm_Force = np.array([Normal_Force[0] + Normal_Force[1]]);
-    Tang_Force = np.array([Tang_Force[0] + Tang_Force[1]]);
-    Norm_Force.append(Normal_Force[2] + Normal_Force[3])
-    Tang_Force.append(Tang_Force[2] + Tang_Force[3])
-    Norm_Force.append(Normal_Force[4])
-    Tang_Force.append(Tang_Force[4])
-    Norm_Force.append(Normal_Force[5])
-    Norm_Force.append(Tang_Force[5])
 
-    for i in range(0,len(Norm_Force)):
-        ObjNConstraint_Val.append(Normal_Force[i] * Normal_Force[i] * mu * mu - Tang_Force[i] * Tang_Force[i])
+    for j in range(0,len(Norm_Force)):
+        ObjNConstraint_Val.append(Norm_Force[j] * Norm_Force[j] * mu * mu - Tang_Force[j] * Tang_Force[j])
         ObjNConstraint_Type.append(1)
+    # ipdb.set_trace()
     return ObjNConstraint_Val, ObjNConstraint_Type
 def Contact_Force_Proj(robot, robotstate, contact_force):
     Robot_ConfigNVel_Update(robot, robotstate)
     _, Nearest_Obs_index = Relative_Dist(robot)
-    Normal_Force = np.array([0])
-    Tange_Force = np.array([0])
+    Normal_Force = [0]
+    Tange_Force = [0]
+    # ipdb.set_trace()
     for i in range(0,len(Nearest_Obs_index)):
-        Normal_Force_i = np.dot(contact_force[2*i:2*i+2], Environment_Normal[2*i:2*i+2])
-        Tange_Force_i = np.dot(contact_force[2*i:2*i+2], Environment_Tange[2*i:2*i+2])
+        Contact_Force_i = contact_force[2*i:2*i+2]
+        Nearest_Obs_index_i = Nearest_Obs_index[i].astype(int)
+        Environment_Normal_i = Environment_Normal[2*Nearest_Obs_index_i:2*Nearest_Obs_index_i+2]
+        Environment_Tange_i = Environment_Tange[2*Nearest_Obs_index_i:2*Nearest_Obs_index_i+2]
+        Normal_Force_i = np.dot(Contact_Force_i, Environment_Normal_i)
+        Tange_Force_i = np.dot(Contact_Force_i, Environment_Tange_i)
         Normal_Force.append(Normal_Force_i)
         Tange_Force.append(Tange_Force_i)
     Normal_Force = Normal_Force[1:]
     Tange_Force = Tange_Force[1:]
     return Normal_Force, Tange_Force
-def Contact_Force_Complem_Constraint(Ctrl, sigma_i, ObjNConstraint_Val, ObjNConstraint_Type):
+def Contact_Force_Complem_Constraint(Contact_Force, sigma_i, ObjNConstraint_Val, ObjNConstraint_Type):
     Contact_Force_Complem_Matrix = np.diag([not sigma_i[0], not sigma_i[0], not sigma_i[0], not sigma_i[0], \
                                             not sigma_i[1], not sigma_i[1], not sigma_i[1], not sigma_i[1], \
                                             not sigma_i[2], not sigma_i[2], not sigma_i[3], not sigma_i[3]])
-    temp_result = np.dot(Contact_Force_Complem_Matrix, Ctrl)
+    temp_result = np.dot(Contact_Force_Complem_Matrix, Contact_Force)
     for i in range(0, len(temp_result)):
         ObjNConstraint_Val.append(temp_result[i])
         ObjNConstraint_Type.append(0)
     return ObjNConstraint_Val, ObjNConstraint_Type
-def Dynamics_Constraint(robot, T, Pos, Vel, Acc, Ctrl_Coeff, Contact_Force_Coeff, Grid_Ind, s):
+def Dynamics_Constraint(robot, T, Pos, Vel, Acc, Ctrl, Contact_Force):
     D_q, C_q_qdot, G_q, End_Effector_JacTrans = Dynamics_Matrics(robot, Pos, Vel, Acc)
-    Ctrl = Control_Coeff2Vec(T, Ctrl_Coeff, Grid_Ind, s)
+    Acc = Dimension_Recovery(Acc)
     Ctrl = np.append(np.array([0,0,0]), Ctrl)
     Ctrl.shape = (len(Act_Link_Ind),1)
-    Contact_Force = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, Grid_Ind, s)
     Dynamics_LHS = np.add(np.add(np.dot(D_q, Acc), C_q_qdot), G_q)
-    Dynamics_RHS = np.dot(End_Effector_JacTrans, Contact_Force)
-    temp_result = np.subtract(Dynamics_LHS, Dynamics_RhS)
+    Contact_Force_Full = np.dot(End_Effector_JacTrans, Contact_Force)
+    Contact_Sim = np.zeros(len(Act_Link_Ind))
+    for i in range(0, len(Act_Link_Ind)):
+        Contact_Sim[i] = Contact_Force_Full[Act_Link_Ind[i]]
+    temp_result = np.zeros(len(Act_Link_Ind))
+    for i in range(0, len(Act_Link_Ind)):
+        temp_result[i] = Dynamics_LHS[Act_Link_Ind[i]] - Contact_Sim[i] - Ctrl[i]
+    # ipdb.set_trace()
     return temp_result
 def Dynamics_Matrics(robot, Pos, Vel, Acc):
     Acc = Dimension_Recovery(Acc)
@@ -542,15 +586,15 @@ def Dynamics_Matrics(robot, Pos, Vel, Acc):
     End_Effector_Jac = End_Effector_Jacobian(robot)           # 12 x 36
     End_Effector_JacTrans = np.transpose(End_Effector_Jac)
     return D_q, C_q_qdot, G_q, End_Effector_JacTrans
-def Contact_Maintenance(world, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type):
+def Contact_Maintenance(robot, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type):
     # This function is used to make sure that the previous contact should be maintained
     sigma_i = Sigma_Modi_De(Node_i.sigma)
     sigma_i_child = Sigma_Modi_De(Node_i_child.sigma)
-    End_Effector_Pos = get_End_Effector_Pos(world.robot(0))         # 6 * 2 by 1
-    End_Effector_Vel = get_End_Effector_Vel(world.robot(0))         # 6 * 2 by 1
+    End_Effector_Pos = get_End_Effector_Pos(robot)         # 6 * 2 by 1
+    End_Effector_Vel = get_End_Effector_Vel(robot)         # 6 * 2 by 1
     End_Effector_Pos_ref = Node_i.End_Effector_Pos
     End_Effector_Vel_ref = Node_i.End_Effector_Vel
-    Maint_Matrix = np.diag([sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], \
+    Maint_Matrix = np.diag([ sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], \
                              sigma_i[1] * sigma_i_child[1], sigma_i[1] * sigma_i_child[1], sigma_i[1] * sigma_i_child[1], sigma_i[1] * sigma_i_child[1], \
                              sigma_i[2] * sigma_i_child[2], sigma_i[2] * sigma_i_child[2], sigma_i[3] * sigma_i_child[3], sigma_i[3] * sigma_i_child[3]])
     End_Effector_Pos_Maint = np.subtract(End_Effector_Pos_ref, End_Effector_Pos)
@@ -608,40 +652,29 @@ def Foot_Orientation(hrp2_robot):
 def Nodes_Optimization_fn(world, Node_i, Node_i_child):
     # // This function will optimize the joint trajectories to minimize the robot kinetic energy while maintaining a smooth transition fashion
     Seed_Flag, T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Gene(world, Node_i, Node_i_child)
-    ipdb.set_trace()
+    # ipdb.set_trace()
     if Seed_Flag == 1:
         Opt_Var_Num = Opt_Var_Num_fn(StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff) + 1
         Seed_Guess_vec = Seed_Guess_Zip(T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff)
-        # T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Unzip(Seed_Guess_vec)
         xlb = -Inf * np.ones(Opt_Var_Num)
         xub = Inf * np.ones(Opt_Var_Num)
         xlb[0] = mini
         xub[0] = 0.1 * Grids
         # Optimization problem setup
-        Real_Optimization_Prob = Real_Optimization_fn(world, Node_i, Node_i_child)
+        Real_Optimization_Prob = Real_Optimization_fn(world, Node_i, Node_i_child, Seed_Guess_vec)
         Real_Optimization_Prob.xlb = xlb
         Real_Optimization_Prob.xub = xub
-        ObjNConstraint_Val, ObjNConstraint_Type = Real_ObjNConstraint(world, sigma_init, robotstate_init, robotstate_init)
+        ObjNConstraint_Val, ObjNConstraint_Type = Real_ObjNConstraint(world, Node_i, Node_i_child, Seed_Guess_vec)
         lb, ub = ObjNCon_Bds(ObjNConstraint_Type)
         Real_Optimization_Prob.lb = lb
         Real_Optimization_Prob.ub = ub
         cfg = snoptConfig()
+        cfg.majoriterlimit = 5000
+        cf.feaTol = 1e-5
         cfg.printLevel = 1
         cfg.printFile = "result.txt"
         slv = solver(Real_Optimization_Prob, cfg)
-        # rst = slv.solveRand()
         rst = slv.solveGuess(Seed_Guess_vec)
-
-        robot_angle_opt = np.zeros(Tot_Link_No)
-        for i in range(0,len(Act_Link_Ind)):
-            robot_angle_opt[Act_Link_Ind[i]] = rst.sol[i]
-
-        file_object  = open("robot_angle_opt.config", 'w')
-        file_object.write("36\t")
-        for i in range(0,Tot_Link_No):
-            file_object.write(str(robot_angle_opt[i]))
-            file_object.write(' ')
-        file_object.close()
         return rst.sol, rst.sol
 def Seed_Guess_Zip(T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff):
     # This function is used to zip the seed guess into a single column vector
@@ -721,6 +754,7 @@ def Seed_Guess_Gene(world, Node_i, Node_i_child):
         hrp2_robot = world.robot(0)                         # Now hrp2_robot is an instance of RobotModel type
         for i in range(0,Grids-1):
             Pos_init, Vel_init, Acc_init, VelfromPos_init= StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0)
+            # ipdb.set_trace()
             Contact_Force_init, Control_init = Contact_ForceNControl_initialization(world.robot(0), Pos_init, Vel_init, Acc_init)
             Control_init = Control_init[3:]
             Pos_end, Vel_end, Acc_end, VelfromPos_init = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 1)
@@ -745,6 +779,7 @@ def Linear_Coeff(value_a, value_b):
     return a,b
 def Contact_ForceNControl_initialization(hrp2_robot, Pos, Vel, Acc):
     D_q, C_q_qdot, G_q, End_Effector_JacTrans = Dynamics_Matrics(hrp2_robot, Pos, Vel, Acc)
+    Acc = Dimension_Recovery(Acc)
     RHS = np.add(np.add(np.dot(D_q, Acc),C_q_qdot), G_q)
     temp_mat = np.identity(Tot_Link_No)
     LHS = Matrix_Stack(End_Effector_JacTrans, temp_mat)
@@ -780,24 +815,25 @@ def End_Effector_Jacobian(hrp2_robot):
 def StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, Grid_Ind, s):
     # Here Grid_Ind denotes which Grid we are talking about and s is a value between 0 and 1
     StateNDot_Coeff_i = StateNDot_Coeff[:,Grid_Ind]
-    Pos = np.zeros([len(Act_Link_Ind)])
-    Vel = np.zeros([len(Act_Link_Ind)])
-    Acc = np.zeros([len(Act_Link_Ind)])
-    VelfromPos = np.zeros([len(Act_Link_Ind)])
+    Pos = [0]
+    Vel = [0]
+    Acc = [0]
+    VelfromPos = [0]
     for i in range(0,len(Act_Link_Ind)):
         StateNDot_Coeff_i = StateNDot_Coeff[8*i:(8*i+8),Grid_Ind]
         Pos_i, Vel_i, Acc_i, VelfromPos_i = CubicSpline_PosVelAcc8(T, StateNDot_Coeff_i[0], StateNDot_Coeff_i[1], StateNDot_Coeff_i[2], StateNDot_Coeff_i[3], \
                                                         StateNDot_Coeff_i[4], StateNDot_Coeff_i[5], StateNDot_Coeff_i[6], StateNDot_Coeff_i[7], s)
-        Pos[i] = Pos_i
-        Vel[i] = Vel_i
-        Acc[i] = Acc_i
-        VelfromPos[i] = VelfromPos_i
-    return Pos, Vel, Acc, VelfromPos
+        Pos.append(Pos_i)
+        Vel.append(Vel_i)
+        Acc.append(Acc_i)
+        VelfromPos.append(VelfromPos_i)
+    return Pos[1:], Vel[1:], Acc[1:], VelfromPos[1:]
 def Control_Coeff2Vec(T, Ctrl_Coeff, Grid_Ind, s):
     # Here Grid_Ind denotes which Grid we are talking about and s is a value between 0 and 1
     # y = a * s + b
     Control_len = 10
     Ctrl_i = np.zeros(Control_len)
+    # ipdb.set_trace()
     for i in range(0,Control_len):
         Ctrl_Coeff_i = Ctrl_Coeff[2*i:(2*i+2),Grid_Ind]
         Ctrl_i[i] = Ctrl_Coeff_i[0] * s + Ctrl_Coeff_i[1]
@@ -835,10 +871,10 @@ def CubicSpline_PosVelAcc4(T,a,b,c,d,s):
 def Seed_Guess_Gene_Robotstate(world, Node_i, Node_i_child):
     # This function is used to generate a desired configuration that satisfies the goal contact mode
     # There are two possibilities: one is self_opt, the other is connectivity_opt
-    xlb, xub = Robotstate_Bounds(world, Node_i.robotstate)
+    # xlb, xub = Robotstate_Bounds(world, Node_i.robotstate)
     Seed_Robotstate_Optimization = Seed_Robotstate_Optimization_Prob(world, Node_i, Node_i_child)
-    Seed_Robotstate_Optimization.xlb = xlb
-    Seed_Robotstate_Optimization.xub = xub
+    Seed_Robotstate_Optimization.xlb = robotstate_lb
+    Seed_Robotstate_Optimization.xub = robotstate_ub
     ObjNConstraint_Val, ObjNConstraint_Type = Robotstate_ObjNConstraint_Seed(world, Node_i, Node_i_child, Node_i.robotstate)
     lb, ub = ObjNCon_Bds(ObjNConstraint_Type)
     Seed_Robotstate_Optimization.lb = lb
@@ -873,6 +909,15 @@ def ObjNCon_Bds(ObjNConstraint_Type):
         else:
             ub[i] = Inf
     return lb, ub
+def Control_Bounds(world,Control_len):
+    hrp2_robot = world.robot(0)
+    TorqueLimits = hrp2_robot.getTorqueLimits()
+    xlb = np.zeros(Control_len)
+    xub = np.zeros(Control_len)
+    for i in range(0,Control_len):
+        xlb[i] = -TorqueLimits[Ctrl_Link_Ind[i]]
+        xub[i] = TorqueLimits[Ctrl_Link_Ind[i]]
+    return xlb, xub
 def Robotstate_Bounds(world, robotstate):
     hrp2_robot = world.robot(0)
     qmin, qmax = hrp2_robot.getJointLimits()
@@ -933,7 +978,7 @@ def main():
     # However, the initiali angular velocities can be customerized by the user in robot_angvel_init.txt
 
     # The first step is to validate the feasibility of the given initial condition
-    sigma_init = np.array([1,1,0,0])            # This is the initial contact status:  1__------> contact constraint is active,
+    sigma_init = np.array([1,0,0,0])            # This is the initial contact status:  1__------> contact constraint is active,
                                                 #                                      0--------> contact constraint is inactive
                                                 #                                   [left foot, right foot, left hand, right hand]
     sigma_init = Sigma_Modi_In(sigma_init)
@@ -950,6 +995,7 @@ def main():
         else:
             robotstate_init[i] = angvel_init[i-len(angle_init)]
     Environment_Normal_Cal(Environment)
+
 
     # Now it is the validation of the feasibility of the given initial condition
     robotstate_init_Opted = Initial_Condition_Validation(world, sigma_init, robotstate_init)
@@ -969,11 +1015,14 @@ def main():
         # * if this does not work, then expand the current node into the adjacent nodes
         # */
         Node_i, Frontier_Nodes, Frontier_Nodes_Cost = Pop_Node(Frontier_Nodes, Frontier_Nodes_Cost)
-        Opt_Flag, Opt_Seed = Nodes_Optimization_fn(world, Node_i, Node_i)
-
-    # MyGLViewer(world)
-
-    # viewer = MyGLViewer(sys.argv[1:])
-    # viewer.run()
+        Opt_Flag, Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i)
+        if Opt_Flag == 1:
+            file_object  = open("Opt_Soln.txt", 'w')
+            for i in range(0,len(Opt_Soln)):
+                file_object.write(str(Opt_Soln[i]))
+                file_object.write('\n')
+            file_object.close()
+            break
+        # else:
 if __name__ == "__main__":
     main()
