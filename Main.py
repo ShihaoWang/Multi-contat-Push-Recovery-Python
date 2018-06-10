@@ -166,44 +166,44 @@ def Impact_Mapping_fn(robot, Pos, Vel, Acc):
     for i range(0, len(Vel)):
         Vel_new[i] = Vel[i] + RHS[i]
     return Pos, Vel
-class MyGLViewer(GLSimulationProgram):
-    def __init__(self,world):
-        #create a world from the given files
-        self.world = world
-        GLSimulationProgram.__init__(self,world,"My GL program")
-        self.traj = model.trajectory.RobotTrajectory(world.robot(0))
-        self.traj.load("/home/shihao/Klampt/data/motions/athlete_flex.path")
-    def control_loop(self):
-        #Put your control handler here
-        sim = self.sim
-        traj = self.traj
-        starttime = 2.0
-        if sim.getTime() > starttime:
-            (q,dq) = (traj.eval(self.sim.getTime()-starttime),traj.deriv(self.sim.getTime()-starttime))
-            sim.controller(0).setPIDCommand(q,dq)
-
-    def contact_force_login(self):
-        world = self.world
-        terrain = TerrainModel();  # Now terrain is an instance of the TerrainModel class
-        terrainid = terrain.getID()
-        print terrainid
-        # objectid = world.rigidObject(object_index).getID()
-        # linkid = world.robot(robot_index).link(link_index).getID()
-        # #equivalent to
-        # linkid = world.robotlink(robot_index,link_index).getID()
-
-    def mousefunc(self,button,state,x,y):
-        #Put your mouse handler here
-        #the current example prints out the list of objects clicked whenever
-        #you right click
-        print "mouse",button,state,x,y
-        if button==2:
-            if state==0:
-                print [o.getName() for o in self.click_world(x,y)]
-            return
-        GLSimulationProgram.mousefunc(self,button,state,x,y)
-    def motionfunc(self,x,y,dx,dy):
-        return GLSimulationProgram.motionfunc(self,x,y,dx,dy)
+# class MyGLViewer(GLSimulationProgram):
+#     def __init__(self,world):
+#         #create a world from the given files
+#         self.world = world
+#         GLSimulationProgram.__init__(self,world,"My GL program")
+#         self.traj = model.trajectory.RobotTrajectory(world.robot(0))
+#         self.traj.load("/home/shihao/Klampt/data/motions/athlete_flex.path")
+#     def control_loop(self):
+#         #Put your control handler here
+#         sim = self.sim
+#         traj = self.traj
+#         starttime = 2.0
+#         if sim.getTime() > starttime:
+#             (q,dq) = (traj.eval(self.sim.getTime()-starttime),traj.deriv(self.sim.getTime()-starttime))
+#             sim.controller(0).setPIDCommand(q,dq)
+# 
+#     def contact_force_login(self):
+#         world = self.world
+#         terrain = TerrainModel();  # Now terrain is an instance of the TerrainModel class
+#         terrainid = terrain.getID()
+#         print terrainid
+#         # objectid = world.rigidObject(object_index).getID()
+#         # linkid = world.robot(robot_index).link(link_index).getID()
+#         # #equivalent to
+#         # linkid = world.robotlink(robot_index,link_index).getID()
+#
+#     def mousefunc(self,button,state,x,y):
+#         #Put your mouse handler here
+#         #the current example prints out the list of objects clicked whenever
+#         #you right click
+#         print "mouse",button,state,x,y
+#         if button==2:
+#             if state==0:
+#                 print [o.getName() for o in self.click_world(x,y)]
+#             return
+#         GLSimulationProgram.mousefunc(self,button,state,x,y)
+#     def motionfunc(self,x,y,dx,dy):
+#         return GLSimulationProgram.motionfunc(self,x,y,dx,dy)
 def RobotInitState_Loader():
     # This function is used to load the robot_angle_init.txt and robot_angvel_init.txt into a numpy.ndarray instance
     with open("robot_angle_init.txt",'r') as robot_angle_file:
