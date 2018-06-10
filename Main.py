@@ -36,16 +36,17 @@ class Tree_Node:
         self.sigma = sigma
         self.robotstate = robotstate
         self.KE = KE_fn(robotstate)
+        self.Node_Index = 0
 
-        self.time = 0.0         # initialize to be zero
-        self.StateNDot_Traj = []
-        self.Ctrl_Traj = []
-        self.Contact_Force_Traj = []
-
-        self.self_time = 0.0
-        self.self_StateNDot_Traj = []
-        self.self_Ctrl_Traj = []
-        self.self_Contact_Force_Traj = []
+        # self.time = 0.0         # initialize to be zero
+        # self.StateNDot_Traj = []
+        # self.Ctrl_Traj = []
+        # self.Contact_Force_Traj = []
+        #
+        # self.self_time = 0.0
+        # self.self_StateNDot_Traj = []
+        # self.self_Ctrl_Traj = []
+        # self.self_Contact_Force_Traj = []
 
         self.End_Effector_Pos = get_End_Effector_Pos(robot).copy()
         self.End_Effector_Vel = get_End_Effector_Vel(robot).copy()
@@ -132,6 +133,39 @@ def KE_fn(dataArray):
     # The second method is to do the substitution of symbolic expression
     T = (q1dot*q1dot)*cos(q2)*2.9575E-1+(q1dot*q1dot)*cos(q3)*(1.3E1/5.0E2)+(q2dot*q2dot)*cos(q3)*(1.3E1/5.0E2)+(q4dot*q4dot)*cos(q5)*2.9575E-1+(q4dot*q4dot)*cos(q6)*(1.3E1/5.0E2)+(q5dot*q5dot)*cos(q6)*(1.3E1/5.0E2)+(q7dot*q7dot)*cos(q8)*(6.3E1/3.2E2)+(q9dot*q9dot)*cos(q10)*(6.3E1/3.2E2)+(thetadot*thetadot)*cos(q2)*2.9575E-1+(thetadot*thetadot)*cos(q3)*(1.3E1/5.0E2)+(thetadot*thetadot)*cos(q5)*2.9575E-1+(thetadot*thetadot)*cos(q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*cos(q7)*6.25625E-1+(thetadot*thetadot)*cos(q8)*(6.3E1/3.2E2)-(thetadot*thetadot)*cos(q9)*6.25625E-1+(thetadot*thetadot)*cos(q10)*(6.3E1/3.2E2)-(q1dot*q1dot)*sin(q3)*(1.3E1/5.0E2)-(q2dot*q2dot)*sin(q3)*(1.3E1/5.0E2)-(q4dot*q4dot)*sin(q6)*(1.3E1/5.0E2)-(q5dot*q5dot)*sin(q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q3)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q6)*(1.3E1/5.0E2)+q10dot*q9dot*1.954166666666667E-1+q1dot*q2dot*2.785E-1+q1dot*q3dot*(1.0/4.0E1)+q2dot*q3dot*(1.0/4.0E1)+q4dot*q5dot*2.785E-1+q4dot*q6dot*(1.0/4.0E1)+q5dot*q6dot*(1.0/4.0E1)+q7dot*q8dot*1.954166666666667E-1+q10dot*thetadot*1.954166666666667E-1+q1dot*thetadot*8.418333333333333E-1+q2dot*thetadot*2.785E-1+q3dot*thetadot*(1.0/4.0E1)+q4dot*thetadot*8.418333333333333E-1+q5dot*thetadot*2.785E-1+q6dot*thetadot*(1.0/4.0E1)+q7dot*thetadot*4.824166666666667E-1+q8dot*thetadot*1.954166666666667E-1+q9dot*thetadot*4.824166666666667E-1+(q10dot*q10dot)*9.770833333333333E-2+(q1dot*q1dot)*4.209166666666667E-1+(q2dot*q2dot)*1.3925E-1+(q3dot*q3dot)*(1.0/8.0E1)+(q4dot*q4dot)*4.209166666666667E-1+(q5dot*q5dot)*1.3925E-1+(q6dot*q6dot)*(1.0/8.0E1)+(q7dot*q7dot)*2.412083333333333E-1+(q8dot*q8dot)*9.770833333333333E-2+(q9dot*q9dot)*2.412083333333333E-1+(rIxdot*rIxdot)*(2.71E2/1.0E1)+(rIydot*rIydot)*(2.71E2/1.0E1)+(thetadot*thetadot)*4.3795+(q1dot*q1dot)*cos(q2+q3)*(1.3E1/5.0E2)+(q4dot*q4dot)*cos(q5+q6)*(1.3E1/5.0E2)+(thetadot*thetadot)*cos(q2+q3)*(1.3E1/5.0E2)+(thetadot*thetadot)*cos(q5+q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*cos(q7+q8)*4.33125E-1-(thetadot*thetadot)*cos(q9+q10)*4.33125E-1-(q1dot*q1dot)*sin(q2+q3)*(1.3E1/5.0E2)-(q4dot*q4dot)*sin(q5+q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q2+q3)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q5+q6)*(1.3E1/5.0E2)+q10dot*q9dot*cos(q10)*(6.3E1/3.2E2)+q1dot*q2dot*cos(q2)*2.9575E-1+q1dot*q2dot*cos(q3)*(1.3E1/2.5E2)+q1dot*q3dot*cos(q3)*(1.3E1/5.0E2)+q2dot*q3dot*cos(q3)*(1.3E1/5.0E2)+q4dot*q5dot*cos(q5)*2.9575E-1+q4dot*q5dot*cos(q6)*(1.3E1/2.5E2)+q4dot*q6dot*cos(q6)*(1.3E1/5.0E2)+q5dot*q6dot*cos(q6)*(1.3E1/5.0E2)+q7dot*q8dot*cos(q8)*(6.3E1/3.2E2)+q10dot*thetadot*cos(q10)*(6.3E1/3.2E2)+q1dot*thetadot*cos(q2)*5.915E-1+q1dot*thetadot*cos(q3)*(1.3E1/2.5E2)+q2dot*thetadot*cos(q2)*2.9575E-1+q2dot*thetadot*cos(q3)*(1.3E1/2.5E2)+q3dot*thetadot*cos(q3)*(1.3E1/5.0E2)+q4dot*thetadot*cos(q5)*5.915E-1+q4dot*thetadot*cos(q6)*(1.3E1/2.5E2)+q5dot*thetadot*cos(q5)*2.9575E-1+q5dot*thetadot*cos(q6)*(1.3E1/2.5E2)+q6dot*thetadot*cos(q6)*(1.3E1/5.0E2)-q7dot*thetadot*cos(q7)*6.25625E-1+q7dot*thetadot*cos(q8)*(6.3E1/1.6E2)+q8dot*thetadot*cos(q8)*(6.3E1/3.2E2)-q9dot*thetadot*cos(q9)*6.25625E-1+q9dot*thetadot*cos(q10)*(6.3E1/1.6E2)+rIxdot*thetadot*cos(theta)*1.3585E1+sqrt(4.1E1)*(q1dot*q1dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q2dot*q2dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q3dot*q3dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q4dot*q4dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q5dot*q5dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q6dot*q6dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(thetadot*thetadot)*cos(8.960553845713439E-1)*(1.0/5.0E2)-q1dot*q2dot*sin(q3)*(1.3E1/2.5E2)-q1dot*q3dot*sin(q3)*(1.3E1/5.0E2)-q2dot*q3dot*sin(q3)*(1.3E1/5.0E2)-q4dot*q5dot*sin(q6)*(1.3E1/2.5E2)-q4dot*q6dot*sin(q6)*(1.3E1/5.0E2)-q5dot*q6dot*sin(q6)*(1.3E1/5.0E2)-q1dot*thetadot*sin(q3)*(1.3E1/2.5E2)-q2dot*thetadot*sin(q3)*(1.3E1/2.5E2)-q3dot*thetadot*sin(q3)*(1.3E1/5.0E2)-q4dot*thetadot*sin(q6)*(1.3E1/2.5E2)-q5dot*thetadot*sin(q6)*(1.3E1/2.5E2)-q6dot*thetadot*sin(q6)*(1.3E1/5.0E2)-rIydot*thetadot*sin(theta)*1.3585E1-sqrt(4.1E1)*(q1dot*q1dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q2dot*q2dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q3dot*q3dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q4dot*q4dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q5dot*q5dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q6dot*q6dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(thetadot*thetadot)*sin(8.960553845713439E-1)*(1.0/5.0E2)-q10dot*rIxdot*cos(q9+q10+theta)*(6.3E1/8.0E1)-q1dot*rIxdot*cos(q1+q2+theta)*(9.1E1/1.0E2)-q2dot*rIxdot*cos(q1+q2+theta)*(9.1E1/1.0E2)-q4dot*rIxdot*cos(q4+q5+theta)*(9.1E1/1.0E2)-q5dot*rIxdot*cos(q4+q5+theta)*(9.1E1/1.0E2)-q7dot*rIxdot*cos(q7+q8+theta)*(6.3E1/8.0E1)-q8dot*rIxdot*cos(q7+q8+theta)*(6.3E1/8.0E1)-q9dot*rIxdot*cos(q9+q10+theta)*(6.3E1/8.0E1)-rIxdot*thetadot*cos(q1+q2+theta)*(9.1E1/1.0E2)-rIxdot*thetadot*cos(q4+q5+theta)*(9.1E1/1.0E2)-rIxdot*thetadot*cos(q7+q8+theta)*(6.3E1/8.0E1)-rIxdot*thetadot*cos(q9+q10+theta)*(6.3E1/8.0E1)+sqrt(4.1E1)*(q1dot*q1dot)*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q4dot*q4dot)*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q5+q6-8.960553845713439E-1)*6.5E-3+q10dot*rIydot*sin(q9+q10+theta)*(6.3E1/8.0E1)+q1dot*rIydot*sin(q1+q2+theta)*(9.1E1/1.0E2)+q2dot*rIydot*sin(q1+q2+theta)*(9.1E1/1.0E2)+q4dot*rIydot*sin(q4+q5+theta)*(9.1E1/1.0E2)+q5dot*rIydot*sin(q4+q5+theta)*(9.1E1/1.0E2)+q7dot*rIydot*sin(q7+q8+theta)*(6.3E1/8.0E1)+q8dot*rIydot*sin(q7+q8+theta)*(6.3E1/8.0E1)+q9dot*rIydot*sin(q9+q10+theta)*(6.3E1/8.0E1)+rIydot*thetadot*sin(q1+q2+theta)*(9.1E1/1.0E2)+rIydot*thetadot*sin(q4+q5+theta)*(9.1E1/1.0E2)+rIydot*thetadot*sin(q7+q8+theta)*(6.3E1/8.0E1)+rIydot*thetadot*sin(q9+q10+theta)*(6.3E1/8.0E1)-q1dot*rIxdot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-q2dot*rIxdot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-q3dot*rIxdot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-q4dot*rIxdot*cos(q4+q5+q6+theta)*(2.0/2.5E1)-q5dot*rIxdot*cos(q4+q5+q6+theta)*(2.0/2.5E1)-q6dot*rIxdot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*rIydot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+q2dot*rIydot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+q3dot*rIydot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+q4dot*rIydot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q5dot*rIydot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q6dot*rIydot*cos(q4+q5+q6+theta)*(2.0/2.5E1)-rIxdot*thetadot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-rIxdot*thetadot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+rIydot*thetadot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+rIydot*thetadot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*rIxdot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q2dot*rIxdot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q3dot*rIxdot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q4dot*rIxdot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q5dot*rIxdot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q6dot*rIxdot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*rIydot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q2dot*rIydot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q3dot*rIydot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q4dot*rIydot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q5dot*rIydot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q6dot*rIydot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+rIxdot*thetadot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+rIxdot*thetadot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+rIydot*thetadot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+rIydot*thetadot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*q2dot*cos(q2+q3)*(1.3E1/5.0E2)+q1dot*q3dot*cos(q2+q3)*(1.3E1/5.0E2)+q4dot*q5dot*cos(q5+q6)*(1.3E1/5.0E2)+q4dot*q6dot*cos(q5+q6)*(1.3E1/5.0E2)-q10dot*thetadot*cos(q9+q10)*4.33125E-1+q1dot*thetadot*cos(q2+q3)*(1.3E1/2.5E2)+q2dot*thetadot*cos(q2+q3)*(1.3E1/5.0E2)+q3dot*thetadot*cos(q2+q3)*(1.3E1/5.0E2)+q4dot*thetadot*cos(q5+q6)*(1.3E1/2.5E2)+q5dot*thetadot*cos(q5+q6)*(1.3E1/5.0E2)+q6dot*thetadot*cos(q5+q6)*(1.3E1/5.0E2)-q7dot*thetadot*cos(q7+q8)*4.33125E-1-q8dot*thetadot*cos(q7+q8)*4.33125E-1-q9dot*thetadot*cos(q9+q10)*4.33125E-1-q1dot*rIxdot*cos(q1+theta)*(3.9E1/2.0E1)-q4dot*rIxdot*cos(q4+theta)*(3.9E1/2.0E1)-q7dot*rIxdot*cos(q7+theta)*(9.1E1/8.0E1)-q9dot*rIxdot*cos(q9+theta)*(9.1E1/8.0E1)-rIxdot*thetadot*cos(q1+theta)*(3.9E1/2.0E1)-rIxdot*thetadot*cos(q4+theta)*(3.9E1/2.0E1)-rIxdot*thetadot*cos(q7+theta)*(9.1E1/8.0E1)-rIxdot*thetadot*cos(q9+theta)*(9.1E1/8.0E1)+sqrt(4.1E1)*(q1dot*q1dot)*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q2dot*q2dot)*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q4dot*q4dot)*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q5dot*q5dot)*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q6-8.960553845713439E-1)*6.5E-3-q1dot*q2dot*sin(q2+q3)*(1.3E1/5.0E2)-q1dot*q3dot*sin(q2+q3)*(1.3E1/5.0E2)-q4dot*q5dot*sin(q5+q6)*(1.3E1/5.0E2)-q4dot*q6dot*sin(q5+q6)*(1.3E1/5.0E2)-q1dot*thetadot*sin(q2+q3)*(1.3E1/2.5E2)-q2dot*thetadot*sin(q2+q3)*(1.3E1/5.0E2)-q3dot*thetadot*sin(q2+q3)*(1.3E1/5.0E2)-q4dot*thetadot*sin(q5+q6)*(1.3E1/2.5E2)-q5dot*thetadot*sin(q5+q6)*(1.3E1/5.0E2)-q6dot*thetadot*sin(q5+q6)*(1.3E1/5.0E2)+q1dot*rIydot*sin(q1+theta)*(3.9E1/2.0E1)+q4dot*rIydot*sin(q4+theta)*(3.9E1/2.0E1)+q7dot*rIydot*sin(q7+theta)*(9.1E1/8.0E1)+q9dot*rIydot*sin(q9+theta)*(9.1E1/8.0E1)+rIydot*thetadot*sin(q1+theta)*(3.9E1/2.0E1)+rIydot*thetadot*sin(q4+theta)*(3.9E1/2.0E1)+rIydot*thetadot*sin(q7+theta)*(9.1E1/8.0E1)+rIydot*thetadot*sin(q9+theta)*(9.1E1/8.0E1)+sqrt(4.1E1)*q1dot*q2dot*cos(q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q1dot*q3dot*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q2dot*q3dot*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*q5dot*cos(q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q4dot*q6dot*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q5dot*q6dot*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*thetadot*cos(q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q2dot*thetadot*cos(q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q3dot*thetadot*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*thetadot*cos(q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q5dot*thetadot*cos(q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q6dot*thetadot*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*q2dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q1dot*q3dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q2dot*q3dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q4dot*q5dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q4dot*q6dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q5dot*q6dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q1dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q2dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q3dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q4dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q5dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q6dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*q2dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*q3dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q2dot*q3dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q4dot*q5dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q4dot*q6dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q5dot*q6dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q2dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q3dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q4dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q5dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q6dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*rIxdot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q2dot*rIxdot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q3dot*rIxdot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q4dot*rIxdot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q5dot*rIxdot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q6dot*rIxdot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*rIxdot*thetadot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*rIxdot*thetadot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q1dot*rIydot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q2dot*rIydot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q3dot*rIydot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q4dot*rIydot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q5dot*rIydot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q6dot*rIydot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*rIydot*thetadot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*rIydot*thetadot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q1dot*q2dot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*q3dot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*q5dot*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*q6dot*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*thetadot*cos(q2+q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q2dot*thetadot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q3dot*thetadot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*thetadot*cos(q5+q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q5dot*thetadot*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q6dot*thetadot*cos(q5+q6-8.960553845713439E-1)*6.5E-3
     return T
+def Spline2RobotstateNKe(Opt_Soln, Grid_Index, sigma_i, sigma_i_child, robot):
+    # This function is used to calcuale robot state and kinetic energy based on the the spline coefficients
+    T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Unzip(Opt_Soln)
+    if Grid_Index == Grids:
+        Pos,  Vel,  Acc,  VelfromPos  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, Grids-1, 1)
+    else:
+        Pos,  Vel,  Acc,  VelfromPos  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, Grids, 0)
+
+    # Here we need to know whether there is impact involved in this whole process
+    sigma_result = np.subtract(sigma_i_child, sigma_i)
+    if np.max(sigma_result)<1:
+        # No impact mapping
+        robotstate = List_Append(Pos, Vel)
+    else:
+        # There is impact mapping
+        Pos, Vel = Impact_Mapping_fn(robot, Pos, Vel, Acc)
+        robotstate = List_Append(Pos, Vel)
+    KE = KE_fn(robotstate)
+    return robotstate, KE
+def Impact_Mapping_fn(robot, Pos, Vel, Acc):
+    # This function is used to take carfe of the impact maping case
+    D_q, C_q_qdot, G_q, End_Effector_JacTrans = Dynamics_Matrics(robot, Pos, Vel, Acc)
+    End_Effector_Jac = np.transpose(End_Effector_JacTrans)
+    D_q_inv = np.linalg.inv(D_q)
+    Jac_Dinv_Jtrans_inv = np.linalg.inv(np.dot(np.dot(End_Effector_Jac, D_q_inv)), End_Effector_JacTrans)
+    # Impulse
+    lamda = -np.dot(np.dot(Jac_Dinv_Jtrans_inv, End_Effector_Jac), Vel)
+    # New robotstate
+    RHS = np.dot(np.dot(D_q_inv, End_Effector_JacTrans), lamda)
+    Vel_new = np.zeros(len(Vel))
+    for i range(0, len(Vel)):
+        Vel_new[i] = Vel[i] + RHS[i]
+    return Pos, Vel
 class MyGLViewer(GLSimulationProgram):
     def __init__(self,world):
         #create a world from the given files
@@ -305,6 +339,9 @@ def Initial_Condition_Validation(world, sigma_init, robotstate_init):
     slv = solver(Initial_Condition_Opt, cfg)
     # rst = slv.solveRand()
     rst = slv.solveGuess(robotstate_init)
+
+    # ipdb.set_trace()
+
     # Then it is to take out the optimized robot configuration
     robot_angle_opt = np.zeros(Tot_Link_No)
     for i in range(0,len(Act_Link_Ind)):
@@ -400,22 +437,18 @@ def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
         # For init and end on this segment
 
         Pos_init, Vel_init, Acc_init, VelfromPos_init = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0)
-        Pos_mid,  Vel_mid,  Acc_mid,  VelfromPos_mid  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0.5)
         Pos_end,  Vel_end,  Acc_end,  VelfromPos_end  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 1)
 
         robotstate_init = List_Append(Pos_init, Vel_init)
-        robotstate_mid = List_Append(Pos_mid, Vel_mid)
         robotstate_end = List_Append(Pos_end, Vel_end)
 
         KE_i = KE_fn(robotstate_end)
         KE_tot.append(KE_i)
 
         Ctrl_init = Control_Coeff2Vec(T, Ctrl_Coeff, i, 0)
-        Ctrl_mid = Control_Coeff2Vec(T, Ctrl_Coeff, i, 0.5)
         Ctrl_end = Control_Coeff2Vec(T, Ctrl_Coeff, i, 1)
 
         Contact_Force_init = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 0)
-        Contact_Force_mid = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 0.5)
         Contact_Force_end = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 1)
 
         # 1. Constraint on smoothness at both edges
@@ -452,21 +485,18 @@ def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
         Ctrl_ref = Ctrl_end
         Contact_Force_ref = Contact_Force_end
 
-        # 2. Dynamics Constraints at both start and end
+        # 2. Dynamics Constraints
         # 3. Complementarity constraints: Distance!
         # 4. Complementarity constraints: Contact Force!
         # 5. Contact force feasibility constraints: normal force should be positive and the friction cone constraint has to be satisfied
         # 6. Contact maintenance constraint: the previous unchanged active constraint have to be satisfied
-        # All the above constraint will be taken care of separaetly on init, mid and end
-        # Init stage:
+        # All the above constraint will be taken care of
+
         Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_init, Vel_init, Acc_init, Ctrl_init, Contact_Force_init, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        # # # Mid stage:
-        # # Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_mid, Vel_mid, Acc_mid, Ctrl_mid, Contact_Force_mid, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        # # End stage:
-        # if i<Grids-2:
-        #     Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_end, Vel_end, Acc_end, Ctrl_end, Contact_Force_end, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-        # else:
-        #     Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_end, Vel_end, Acc_end, Ctrl_end, Contact_Force_end, sigma_goal, ObjNConstraint_Val, ObjNConstraint_Type)
+
+        # End stage constraint
+        if i==Grids-1:
+            Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_end, Vel_end, Acc_end, Ctrl_end, Contact_Force_end, sigma_goal, ObjNConstraint_Val, ObjNConstraint_Type)
 
     # Final computation is to update the objective function value and add constraint
     ObjNConstraint_Val[0] = Obj_Cal(KE_tot, T)
@@ -477,7 +507,8 @@ def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
     return ObjNConstraint_Val, ObjNConstraint_Type
 def Real_ObjNConstraint_Stage(robot, Node_i, Node_i_child, T, Pos, Vel, Acc, Ctrl, Contact_Force, sigma, ObjNConstraint_Val, ObjNConstraint_Type):
     # This function will compute the 2 to 6 constraints
-    # 2. Dynamics Constraints at both start and end
+
+    # 2. Dynamics Constraints
     temp_result = Dynamics_Constraint(robot, T, Pos, Vel, Acc, Ctrl, Contact_Force)
     for j in range(0,len(temp_result)):
         ObjNConstraint_Val.append(temp_result[j])
@@ -502,7 +533,8 @@ def Obj_Cal(KE_tot, T):
     dt = T/(Grids - 1) * 1.0
     Obj = 0.0
     for i in range(0, len(KE_tot)-1):
-        Obj = Obj + (KE_tot[i+1] - KE_tot[i]) * (KE_tot[i+1] - KE_tot[i])/(dt * dt)
+        # Obj = Obj + (KE_tot[i+1] - KE_tot[i]) * (KE_tot[i+1] - KE_tot[i])/(dt * dt)
+        Obj = Obj + (KE_tot[i+1] - KE_tot[i]) * (KE_tot[i+1] - KE_tot[i])
     return Obj
 def List_Append(List_A, List_B):
     List_C = [0]
@@ -669,8 +701,12 @@ def Nodes_Optimization_fn(world, Node_i, Node_i_child):
         Real_Optimization_Prob.lb = lb
         Real_Optimization_Prob.ub = ub
         cfg = snoptConfig()
-        cfg.majoriterlimit = 5000
-        cf.feaTol = 1e-5
+        cfg.majorIterLimit = 10000
+        cfg.minorIterLimit = 10000
+        cfg.iterLimit = 500000
+        cfg.feaTol = 1e-5
+        cfg.optTol = 1e-5
+        ipdb.set_trace()
         cfg.printLevel = 1
         cfg.printFile = "result.txt"
         slv = solver(Real_Optimization_Prob, cfg)
@@ -956,6 +992,30 @@ def Sigma_Modi_De(sigma_i):
     sigma_full[2] = sigma_i[4]
     sigma_full[3] = sigma_i[5]
     return sigma_full
+def Sigma_Expansion(sigma_i, ):
+    # This function is used to expande the current sigma to
+def Node_Expansion(Node_i):
+    # % This function is the main function used to expansion the given node to
+    # % its adjacent nodes without any connectivity test
+
+    # Every expansion has 4 possibilities: 2 hand X 2 foot
+    sigma_i = Sigma_Modi_De(Node_i.sigma)
+    sigma_i_children = np.array([sigma_i])
+    # Left_Foot_sigma = sigma_i[0]
+    # Rght_Foot_sigma = sigma_i[1]
+    # Left_Hand_sigma = sigma_i[2]
+    # Rght_Hand_sigma = sigma_i[3]
+    for i range(0,len(sigma_i)):
+        sigma_temp = sigma_i
+        sigma_temp[i] = !sigma_temp[i]
+        sigma_i_children = np.append(sigma_i_children, sigma_temp)
+    sigma_i_children = sigma_i_children[len(sigma_i):]
+    return sigma_i_children
+def Node_Add(All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost, Node_i):
+    All_Nodes = np.append(All_Nodes, Node_i)
+    Frontier_Nodes = np.append(Frontier_Nodes, Node_i)
+    Frontier_Nodes_Cost = np.append(Frontier_Nodes_Cost, Node_i.KE)
+    return All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost
 def main():
     # This funciton is used for the multi-contact humanoid push recovery
     # The default robot to be loaded is the HRP2 robot in this same folder
@@ -1003,26 +1063,58 @@ def main():
 
     Robot_ConfigNVel_Update(world.robot(0),robotstate_init_Opted)
     RootNode = Tree_Node(world.robot(0), sigma_init, robotstate_init_Opted)
+    RootNode.Parent_Node = []
 
     All_Nodes = np.array([RootNode])
-
     Frontier_Nodes = np.array([RootNode])
     Frontier_Nodes_Cost = np.array([RootNode.KE])
 
     while len(Frontier_Nodes)>0:
         # /**
         # * For the current node, first is the Node_Self_Opt to optimize a motion while maintain the current mode
-        # * if this does not work, then expand the current node into the adjacent nodes
+        # * if this does not work, then expand the current node into the adjacent nodes then do the Nodes_Connectivity_Opt
         # */
         Node_i, Frontier_Nodes, Frontier_Nodes_Cost = Pop_Node(Frontier_Nodes, Frontier_Nodes_Cost)
-        Opt_Flag, Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i)
-        if Opt_Flag == 1:
-            file_object  = open("Opt_Soln.txt", 'w')
-            for i in range(0,len(Opt_Soln)):
-                file_object.write(str(Opt_Soln[i]))
+        Self_Opt_Flag, Self_Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i)       # Node_Self_Opt
+        if Self_Opt_Flag == 1:
+            file_name = "Node " + str(Node_i_child.Node_Index) + " Self_Opt_Soln.txt"
+            file_object  = open(file_name, 'w')
+            for i in range(0,len(Self_Opt_Soln)):
+                file_object.write(str(Self_Opt_Soln[i]))
                 file_object.write('\n')
             file_object.close()
+            # Retrieve the parent node index
+            Node_temp = Node_i
+            file_name = "Node Sequence.txt"
+            file_object  = open(file_name, 'w')
+            while len(Node_temp.Parent_Node)>0:
+                file_object.write(str(Node_temp.Parent_Node))
+                file_object.write('\n')
+                Node_temp = Node_temp.Parent_Node
+            file_object.close()
             break
-        # else:
+        else:
+            # THe current node needs to be expanded
+            sigma_i_children = Node_Expansion(Node_i) # Here sigma_i_children is a 4*4 x 1 array
+            for i range(0,len(sigma_i_children)/4):
+                sigma_i_child = Sigma_Modi_In(sigma_i_children[4*i:4*i+4])
+                Node_i_child = Tree_Node(world.robot(0), sigma_i_child, Node_i.robotstate)
+                Opt_Flag, Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i_child)       # Nodes_Connectivity_Opt
+                if Opt_Flag == 1:
+                    Node_i_child_robotstate, Node_i_child_KE = Spline2RobotstateNKe(Opt_Flag, Grids, Node_i.sigma, sigma_i_child, world.robot(0))
+                    Node_i_child.robotstate = Node_i_child_robotstate
+                    Node_i_child.KE = Node_i_child_KE
+                    Node_i_child.Node_Index = len(All_Nodes)-1
+                    Node_i_child.Add_Parent(Node_i)
+                    Node_i.Add_Child(Node_i_child)
+                    All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost = Node_Add(All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost, Node_i_child)
+                    file_name = "Node " + str(Node_i_child.Node_Index) + " Opt_Soln.txt"
+                    file_object  = open(file_name, 'w')
+                    for i in range(0,len(Opt_Soln)):
+                        file_object.write(str(Opt_Soln[i]))
+                        file_object.write('\n')
+                    file_object.close()
+                else:
+                    pass
 if __name__ == "__main__":
     main()
