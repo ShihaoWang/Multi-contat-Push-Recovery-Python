@@ -25,8 +25,8 @@ Environment = np.append(Environment, [5.0, 0, 5.0, 3.0])          # The default 
 Environment_Normal = np.array([0.0, 0.0])                         # Surface normal of the obs surface
 Environment_Tange = np.array([0.0,0.0])                           # Surface tangential vector
 mini = 0.05
-Grids = 10              # This is the grid number for each segment
-mu = 0.5                # default friction coefficients
+Grids = 10                  # This is the grid number for each segment
+mu = 0.35                # default friction coefficients
 robotstate_lb = [0]
 robotstate_ub = [0]
 control_lb = [0]
@@ -35,18 +35,8 @@ class Tree_Node:
     def __init__(self, robot, sigma, robotstate):
         self.sigma = sigma
         self.robotstate = robotstate
-        self.KE = KE_fn(robotstate)
+        self.KE = KE_fn(robot, robotstate)
         self.Node_Index = 0
-
-        # self.time = 0.0         # initialize to be zero
-        # self.StateNDot_Traj = []
-        # self.Ctrl_Traj = []
-        # self.Contact_Force_Traj = []
-        #
-        # self.self_time = 0.0
-        # self.self_StateNDot_Traj = []
-        # self.self_Ctrl_Traj = []
-        # self.self_Contact_Force_Traj = []
 
         self.End_Effector_Pos = get_End_Effector_Pos(robot).copy()
         self.End_Effector_Vel = get_End_Effector_Vel(robot).copy()
@@ -91,67 +81,17 @@ def Dimension_Recovery(low_dim_obj):
     for i in range(0,len(Act_Link_Ind)):
         high_dim_obj[Act_Link_Ind[i]] = low_dim_obj[i]
     return high_dim_obj
-def KE_fn(dataArray):
-    # # The first method is to read the cpp program but it is too slow
-    # # Since the kinetic energy is not a built-in function, the external call will be made to get its value
-    # file_object  = open("robotstate4KE.txt", 'w')
-    # for i in range(0,26):
-    #     file_object.write(str(robotstate[i]))
-    #     file_object.write('\n')
-    # file_object.close()
-    # KE_cmd = './KE'  # Config2Text is a program used to rewrite the row-wise Klampt config file into a column wise txt file
-    # os.system(KE_cmd)
-    # with open("KE4robotstate.txt",'r') as KE_file:
-    #     T = map(float, KE_file)
-    # return T[0]
-    rIx = dataArray[0]
-    rIy = dataArray[1]
-    theta = dataArray[2]
-    q1 = dataArray[3]
-    q2 = dataArray[4]
-    q3 = dataArray[5]
-    q4 = dataArray[6]
-    q5 = dataArray[7]
-    q6 = dataArray[8]
-    q7 = dataArray[9]
-    q8 = dataArray[10]
-    q9 = dataArray[11]
-    q10 = dataArray[12]
-    rIxdot = dataArray[13]
-    rIydot = dataArray[14]
-    thetadot = dataArray[15]
-    q1dot = dataArray[16]
-    q2dot = dataArray[17]
-    q3dot = dataArray[18]
-    q4dot = dataArray[19]
-    q5dot = dataArray[20]
-    q6dot = dataArray[21]
-    q7dot = dataArray[22]
-    q8dot = dataArray[23]
-    q9dot = dataArray[24]
-    q10dot = dataArray[25]
-    # The second method is to do the substitution of symbolic expression
-    T = (q1dot*q1dot)*cos(q2)*2.9575E-1+(q1dot*q1dot)*cos(q3)*(1.3E1/5.0E2)+(q2dot*q2dot)*cos(q3)*(1.3E1/5.0E2)+(q4dot*q4dot)*cos(q5)*2.9575E-1+(q4dot*q4dot)*cos(q6)*(1.3E1/5.0E2)+(q5dot*q5dot)*cos(q6)*(1.3E1/5.0E2)+(q7dot*q7dot)*cos(q8)*(6.3E1/3.2E2)+(q9dot*q9dot)*cos(q10)*(6.3E1/3.2E2)+(thetadot*thetadot)*cos(q2)*2.9575E-1+(thetadot*thetadot)*cos(q3)*(1.3E1/5.0E2)+(thetadot*thetadot)*cos(q5)*2.9575E-1+(thetadot*thetadot)*cos(q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*cos(q7)*6.25625E-1+(thetadot*thetadot)*cos(q8)*(6.3E1/3.2E2)-(thetadot*thetadot)*cos(q9)*6.25625E-1+(thetadot*thetadot)*cos(q10)*(6.3E1/3.2E2)-(q1dot*q1dot)*sin(q3)*(1.3E1/5.0E2)-(q2dot*q2dot)*sin(q3)*(1.3E1/5.0E2)-(q4dot*q4dot)*sin(q6)*(1.3E1/5.0E2)-(q5dot*q5dot)*sin(q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q3)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q6)*(1.3E1/5.0E2)+q10dot*q9dot*1.954166666666667E-1+q1dot*q2dot*2.785E-1+q1dot*q3dot*(1.0/4.0E1)+q2dot*q3dot*(1.0/4.0E1)+q4dot*q5dot*2.785E-1+q4dot*q6dot*(1.0/4.0E1)+q5dot*q6dot*(1.0/4.0E1)+q7dot*q8dot*1.954166666666667E-1+q10dot*thetadot*1.954166666666667E-1+q1dot*thetadot*8.418333333333333E-1+q2dot*thetadot*2.785E-1+q3dot*thetadot*(1.0/4.0E1)+q4dot*thetadot*8.418333333333333E-1+q5dot*thetadot*2.785E-1+q6dot*thetadot*(1.0/4.0E1)+q7dot*thetadot*4.824166666666667E-1+q8dot*thetadot*1.954166666666667E-1+q9dot*thetadot*4.824166666666667E-1+(q10dot*q10dot)*9.770833333333333E-2+(q1dot*q1dot)*4.209166666666667E-1+(q2dot*q2dot)*1.3925E-1+(q3dot*q3dot)*(1.0/8.0E1)+(q4dot*q4dot)*4.209166666666667E-1+(q5dot*q5dot)*1.3925E-1+(q6dot*q6dot)*(1.0/8.0E1)+(q7dot*q7dot)*2.412083333333333E-1+(q8dot*q8dot)*9.770833333333333E-2+(q9dot*q9dot)*2.412083333333333E-1+(rIxdot*rIxdot)*(2.71E2/1.0E1)+(rIydot*rIydot)*(2.71E2/1.0E1)+(thetadot*thetadot)*4.3795+(q1dot*q1dot)*cos(q2+q3)*(1.3E1/5.0E2)+(q4dot*q4dot)*cos(q5+q6)*(1.3E1/5.0E2)+(thetadot*thetadot)*cos(q2+q3)*(1.3E1/5.0E2)+(thetadot*thetadot)*cos(q5+q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*cos(q7+q8)*4.33125E-1-(thetadot*thetadot)*cos(q9+q10)*4.33125E-1-(q1dot*q1dot)*sin(q2+q3)*(1.3E1/5.0E2)-(q4dot*q4dot)*sin(q5+q6)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q2+q3)*(1.3E1/5.0E2)-(thetadot*thetadot)*sin(q5+q6)*(1.3E1/5.0E2)+q10dot*q9dot*cos(q10)*(6.3E1/3.2E2)+q1dot*q2dot*cos(q2)*2.9575E-1+q1dot*q2dot*cos(q3)*(1.3E1/2.5E2)+q1dot*q3dot*cos(q3)*(1.3E1/5.0E2)+q2dot*q3dot*cos(q3)*(1.3E1/5.0E2)+q4dot*q5dot*cos(q5)*2.9575E-1+q4dot*q5dot*cos(q6)*(1.3E1/2.5E2)+q4dot*q6dot*cos(q6)*(1.3E1/5.0E2)+q5dot*q6dot*cos(q6)*(1.3E1/5.0E2)+q7dot*q8dot*cos(q8)*(6.3E1/3.2E2)+q10dot*thetadot*cos(q10)*(6.3E1/3.2E2)+q1dot*thetadot*cos(q2)*5.915E-1+q1dot*thetadot*cos(q3)*(1.3E1/2.5E2)+q2dot*thetadot*cos(q2)*2.9575E-1+q2dot*thetadot*cos(q3)*(1.3E1/2.5E2)+q3dot*thetadot*cos(q3)*(1.3E1/5.0E2)+q4dot*thetadot*cos(q5)*5.915E-1+q4dot*thetadot*cos(q6)*(1.3E1/2.5E2)+q5dot*thetadot*cos(q5)*2.9575E-1+q5dot*thetadot*cos(q6)*(1.3E1/2.5E2)+q6dot*thetadot*cos(q6)*(1.3E1/5.0E2)-q7dot*thetadot*cos(q7)*6.25625E-1+q7dot*thetadot*cos(q8)*(6.3E1/1.6E2)+q8dot*thetadot*cos(q8)*(6.3E1/3.2E2)-q9dot*thetadot*cos(q9)*6.25625E-1+q9dot*thetadot*cos(q10)*(6.3E1/1.6E2)+rIxdot*thetadot*cos(theta)*1.3585E1+sqrt(4.1E1)*(q1dot*q1dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q2dot*q2dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q3dot*q3dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q4dot*q4dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q5dot*q5dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(q6dot*q6dot)*cos(8.960553845713439E-1)*(1.0/1.0E3)+sqrt(4.1E1)*(thetadot*thetadot)*cos(8.960553845713439E-1)*(1.0/5.0E2)-q1dot*q2dot*sin(q3)*(1.3E1/2.5E2)-q1dot*q3dot*sin(q3)*(1.3E1/5.0E2)-q2dot*q3dot*sin(q3)*(1.3E1/5.0E2)-q4dot*q5dot*sin(q6)*(1.3E1/2.5E2)-q4dot*q6dot*sin(q6)*(1.3E1/5.0E2)-q5dot*q6dot*sin(q6)*(1.3E1/5.0E2)-q1dot*thetadot*sin(q3)*(1.3E1/2.5E2)-q2dot*thetadot*sin(q3)*(1.3E1/2.5E2)-q3dot*thetadot*sin(q3)*(1.3E1/5.0E2)-q4dot*thetadot*sin(q6)*(1.3E1/2.5E2)-q5dot*thetadot*sin(q6)*(1.3E1/2.5E2)-q6dot*thetadot*sin(q6)*(1.3E1/5.0E2)-rIydot*thetadot*sin(theta)*1.3585E1-sqrt(4.1E1)*(q1dot*q1dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q2dot*q2dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q3dot*q3dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q4dot*q4dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q5dot*q5dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(q6dot*q6dot)*sin(8.960553845713439E-1)*(1.0/1.0E3)-sqrt(4.1E1)*(thetadot*thetadot)*sin(8.960553845713439E-1)*(1.0/5.0E2)-q10dot*rIxdot*cos(q9+q10+theta)*(6.3E1/8.0E1)-q1dot*rIxdot*cos(q1+q2+theta)*(9.1E1/1.0E2)-q2dot*rIxdot*cos(q1+q2+theta)*(9.1E1/1.0E2)-q4dot*rIxdot*cos(q4+q5+theta)*(9.1E1/1.0E2)-q5dot*rIxdot*cos(q4+q5+theta)*(9.1E1/1.0E2)-q7dot*rIxdot*cos(q7+q8+theta)*(6.3E1/8.0E1)-q8dot*rIxdot*cos(q7+q8+theta)*(6.3E1/8.0E1)-q9dot*rIxdot*cos(q9+q10+theta)*(6.3E1/8.0E1)-rIxdot*thetadot*cos(q1+q2+theta)*(9.1E1/1.0E2)-rIxdot*thetadot*cos(q4+q5+theta)*(9.1E1/1.0E2)-rIxdot*thetadot*cos(q7+q8+theta)*(6.3E1/8.0E1)-rIxdot*thetadot*cos(q9+q10+theta)*(6.3E1/8.0E1)+sqrt(4.1E1)*(q1dot*q1dot)*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q4dot*q4dot)*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q5+q6-8.960553845713439E-1)*6.5E-3+q10dot*rIydot*sin(q9+q10+theta)*(6.3E1/8.0E1)+q1dot*rIydot*sin(q1+q2+theta)*(9.1E1/1.0E2)+q2dot*rIydot*sin(q1+q2+theta)*(9.1E1/1.0E2)+q4dot*rIydot*sin(q4+q5+theta)*(9.1E1/1.0E2)+q5dot*rIydot*sin(q4+q5+theta)*(9.1E1/1.0E2)+q7dot*rIydot*sin(q7+q8+theta)*(6.3E1/8.0E1)+q8dot*rIydot*sin(q7+q8+theta)*(6.3E1/8.0E1)+q9dot*rIydot*sin(q9+q10+theta)*(6.3E1/8.0E1)+rIydot*thetadot*sin(q1+q2+theta)*(9.1E1/1.0E2)+rIydot*thetadot*sin(q4+q5+theta)*(9.1E1/1.0E2)+rIydot*thetadot*sin(q7+q8+theta)*(6.3E1/8.0E1)+rIydot*thetadot*sin(q9+q10+theta)*(6.3E1/8.0E1)-q1dot*rIxdot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-q2dot*rIxdot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-q3dot*rIxdot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-q4dot*rIxdot*cos(q4+q5+q6+theta)*(2.0/2.5E1)-q5dot*rIxdot*cos(q4+q5+q6+theta)*(2.0/2.5E1)-q6dot*rIxdot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*rIydot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+q2dot*rIydot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+q3dot*rIydot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+q4dot*rIydot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q5dot*rIydot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q6dot*rIydot*cos(q4+q5+q6+theta)*(2.0/2.5E1)-rIxdot*thetadot*cos(q1+q2+q3+theta)*(2.0/2.5E1)-rIxdot*thetadot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+rIydot*thetadot*cos(q1+q2+q3+theta)*(2.0/2.5E1)+rIydot*thetadot*cos(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*rIxdot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q2dot*rIxdot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q3dot*rIxdot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q4dot*rIxdot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q5dot*rIxdot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q6dot*rIxdot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*rIydot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q2dot*rIydot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q3dot*rIydot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+q4dot*rIydot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q5dot*rIydot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q6dot*rIydot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+rIxdot*thetadot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+rIxdot*thetadot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+rIydot*thetadot*sin(q1+q2+q3+theta)*(2.0/2.5E1)+rIydot*thetadot*sin(q4+q5+q6+theta)*(2.0/2.5E1)+q1dot*q2dot*cos(q2+q3)*(1.3E1/5.0E2)+q1dot*q3dot*cos(q2+q3)*(1.3E1/5.0E2)+q4dot*q5dot*cos(q5+q6)*(1.3E1/5.0E2)+q4dot*q6dot*cos(q5+q6)*(1.3E1/5.0E2)-q10dot*thetadot*cos(q9+q10)*4.33125E-1+q1dot*thetadot*cos(q2+q3)*(1.3E1/2.5E2)+q2dot*thetadot*cos(q2+q3)*(1.3E1/5.0E2)+q3dot*thetadot*cos(q2+q3)*(1.3E1/5.0E2)+q4dot*thetadot*cos(q5+q6)*(1.3E1/2.5E2)+q5dot*thetadot*cos(q5+q6)*(1.3E1/5.0E2)+q6dot*thetadot*cos(q5+q6)*(1.3E1/5.0E2)-q7dot*thetadot*cos(q7+q8)*4.33125E-1-q8dot*thetadot*cos(q7+q8)*4.33125E-1-q9dot*thetadot*cos(q9+q10)*4.33125E-1-q1dot*rIxdot*cos(q1+theta)*(3.9E1/2.0E1)-q4dot*rIxdot*cos(q4+theta)*(3.9E1/2.0E1)-q7dot*rIxdot*cos(q7+theta)*(9.1E1/8.0E1)-q9dot*rIxdot*cos(q9+theta)*(9.1E1/8.0E1)-rIxdot*thetadot*cos(q1+theta)*(3.9E1/2.0E1)-rIxdot*thetadot*cos(q4+theta)*(3.9E1/2.0E1)-rIxdot*thetadot*cos(q7+theta)*(9.1E1/8.0E1)-rIxdot*thetadot*cos(q9+theta)*(9.1E1/8.0E1)+sqrt(4.1E1)*(q1dot*q1dot)*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q2dot*q2dot)*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q4dot*q4dot)*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(q5dot*q5dot)*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*(thetadot*thetadot)*cos(q6-8.960553845713439E-1)*6.5E-3-q1dot*q2dot*sin(q2+q3)*(1.3E1/5.0E2)-q1dot*q3dot*sin(q2+q3)*(1.3E1/5.0E2)-q4dot*q5dot*sin(q5+q6)*(1.3E1/5.0E2)-q4dot*q6dot*sin(q5+q6)*(1.3E1/5.0E2)-q1dot*thetadot*sin(q2+q3)*(1.3E1/2.5E2)-q2dot*thetadot*sin(q2+q3)*(1.3E1/5.0E2)-q3dot*thetadot*sin(q2+q3)*(1.3E1/5.0E2)-q4dot*thetadot*sin(q5+q6)*(1.3E1/2.5E2)-q5dot*thetadot*sin(q5+q6)*(1.3E1/5.0E2)-q6dot*thetadot*sin(q5+q6)*(1.3E1/5.0E2)+q1dot*rIydot*sin(q1+theta)*(3.9E1/2.0E1)+q4dot*rIydot*sin(q4+theta)*(3.9E1/2.0E1)+q7dot*rIydot*sin(q7+theta)*(9.1E1/8.0E1)+q9dot*rIydot*sin(q9+theta)*(9.1E1/8.0E1)+rIydot*thetadot*sin(q1+theta)*(3.9E1/2.0E1)+rIydot*thetadot*sin(q4+theta)*(3.9E1/2.0E1)+rIydot*thetadot*sin(q7+theta)*(9.1E1/8.0E1)+rIydot*thetadot*sin(q9+theta)*(9.1E1/8.0E1)+sqrt(4.1E1)*q1dot*q2dot*cos(q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q1dot*q3dot*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q2dot*q3dot*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*q5dot*cos(q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q4dot*q6dot*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q5dot*q6dot*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*thetadot*cos(q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q2dot*thetadot*cos(q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q3dot*thetadot*cos(q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*thetadot*cos(q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q5dot*thetadot*cos(q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q6dot*thetadot*cos(q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*q2dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q1dot*q3dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q2dot*q3dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q4dot*q5dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q4dot*q6dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q5dot*q6dot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q1dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q2dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q3dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q4dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q5dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)+sqrt(4.1E1)*q6dot*thetadot*cos(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*q2dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*q3dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q2dot*q3dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q4dot*q5dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q4dot*q6dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q5dot*q6dot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q2dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q3dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q4dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q5dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q6dot*thetadot*sin(8.960553845713439E-1)*(1.0/5.0E2)-sqrt(4.1E1)*q1dot*rIxdot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q2dot*rIxdot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q3dot*rIxdot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q4dot*rIxdot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q5dot*rIxdot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*q6dot*rIxdot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*rIxdot*thetadot*cos(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)-sqrt(4.1E1)*rIxdot*thetadot*cos(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q1dot*rIydot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q2dot*rIydot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q3dot*rIydot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q4dot*rIydot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q5dot*rIydot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q6dot*rIydot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*rIydot*thetadot*sin(q1+q2+q3+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*rIydot*thetadot*sin(q4+q5+q6+theta-8.960553845713439E-1)*(1.0/5.0E1)+sqrt(4.1E1)*q1dot*q2dot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*q3dot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*q5dot*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*q6dot*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q1dot*thetadot*cos(q2+q3-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q2dot*thetadot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q3dot*thetadot*cos(q2+q3-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q4dot*thetadot*cos(q5+q6-8.960553845713439E-1)*(1.3E1/1.0E3)+sqrt(4.1E1)*q5dot*thetadot*cos(q5+q6-8.960553845713439E-1)*6.5E-3+sqrt(4.1E1)*q6dot*thetadot*cos(q5+q6-8.960553845713439E-1)*6.5E-3
+def KE_fn(robot, dataArray):
+    #First we have to set the robot to be the corresponding configuration and angular velocities
+    Robot_ConfigNVel_Update(robot, dataArray)
+    D_q = np.asarray(robot.getMassMatrix())    # Here D_q is the effective inertia matrix
+    qdot_i = dataArray[13:None]
+    qdot_i = np.reshape(qdot_i,[13,1])
+    qdot_i = Dimension_Recovery(qdot_i)
+    qdot_i_trans = np.transpose(qdot_i)
+    T = qdot_i_trans.dot(D_q.dot(qdot_i))
     return T
-def Spline2RobotstateNKe(Opt_Soln, Grid_Index, sigma_i, sigma_i_child, robot):
-    # This function is used to calcuale robot state and kinetic energy based on the the spline coefficients
-    T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Unzip(Opt_Soln)
-    if Grid_Index == Grids:
-        Pos,  Vel,  Acc,  VelfromPos  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, Grids-1, 1)
-    else:
-        Pos,  Vel,  Acc,  VelfromPos  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, Grids, 0)
 
-    # Here we need to know whether there is impact involved in this whole process
-    sigma_result = np.subtract(sigma_i_child, sigma_i)
-    if np.max(sigma_result)<1:
-        # No impact mapping
-        robotstate = List_Append(Pos, Vel)
-    else:
-        # There is impact mapping
-        Pos, Vel = Impact_Mapping_fn(robot, Pos, Vel, Acc)
-        robotstate = List_Append(Pos, Vel)
-    KE = KE_fn(robotstate)
-    return robotstate, KE
 def Impact_Mapping_fn(robot, Pos, Vel, Acc):
     # This function is used to take carfe of the impact maping case
     D_q, C_q_qdot, G_q, End_Effector_JacTrans = Dynamics_Matrics(robot, Pos, Vel, Acc)
@@ -163,7 +103,7 @@ def Impact_Mapping_fn(robot, Pos, Vel, Acc):
     # New robotstate
     RHS = np.dot(np.dot(D_q_inv, End_Effector_JacTrans), lamda)
     Vel_new = np.zeros(len(Vel))
-    for i range(0, len(Vel)):
+    for i in range(0, len(Vel)):
         Vel_new[i] = Vel[i] + RHS[i]
     return Pos, Vel
 # class MyGLViewer(GLSimulationProgram):
@@ -181,7 +121,7 @@ def Impact_Mapping_fn(robot, Pos, Vel, Acc):
 #         if sim.getTime() > starttime:
 #             (q,dq) = (traj.eval(self.sim.getTime()-starttime),traj.deriv(self.sim.getTime()-starttime))
 #             sim.controller(0).setPIDCommand(q,dq)
-# 
+#
 #     def contact_force_login(self):
 #         world = self.world
 #         terrain = TerrainModel();  # Now terrain is an instance of the TerrainModel class
@@ -397,7 +337,7 @@ def Distance_Velocity_Constraint(robot, sigma_i, ObjNConstraint_Val, ObjNConstra
 def Robotstate_ObjNConstraint_Seed(world, Node_i, Node_i_child, robotstate):
     # This function is used to generate the value of the objecttive function and the constraints
     # The constraints will be on the position and the velocity of the robot end effector extremeties
-    KE_i_child = KE_fn(robotstate)
+    KE_i_child = KE_fn(world.robot(0), robotstate)
     ObjNConstraint_Val = [0]
     ObjNConstraint_Val.append(KE_i_child)
     ObjNConstraint_Val = ObjNConstraint_Val[1:]
@@ -409,13 +349,13 @@ def Robotstate_ObjNConstraint_Seed(world, Node_i, Node_i_child, robotstate):
 def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
     # This function is used to generate the value of the objecttive function and the constraints
     # The constraints will be on the position and the velocity of the robot end effector extremeties
-    T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Unzip(Opt_Seed)
+    T_tot, StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj = Seed_Guess_Unzip(Opt_Seed)
+    T = T_tot/(Grids - 1) * 1.0
+    robot = world.robot(0)
+    ipdb.set_trace()
 
     Pos_ref = Node_i.robotstate[0:len(Act_Link_Ind)]
     Vel_ref = Node_i.robotstate[len(Act_Link_Ind):]
-
-    Ctrl_ref = Control_Coeff2Vec(T, Ctrl_Coeff, 0, 0)
-    Contact_Force_ref = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, 0, 0)
 
     ObjNConstraint_Val = [0]
     ObjNConstraint_Type = [1]                                                 # 1------------------> inequality constraint
@@ -428,106 +368,156 @@ def Real_ObjNConstraint(world, Node_i, Node_i_child, Opt_Seed):
         sigma_tran = Node_i_child.sigma
         sigma_goal = Node_i_child.sigma
     if np.array_equal(Node_i.sigma, Node_i_child.sigma) == True:
-        KE_Const = 0.1
+        KE_Const = 0.01
     else:
         KE_Const = 0.2 * Node_i.KE
+    # 1. The first constraint is to make sure that the initial condition matches the given initial condition
+    StateNDot_Traj_1st_colm = StateNDot_Traj[:,0]
+    for i in range(0, 26):
+        value = StateNDot_Traj_1st_colm[i] - Node_i.robotstate[i]
+        quad_value = value * value
+        ObjNConstraint_Val.append(quad_value)
+        ObjNConstraint_Type.append(0)
+    ipdb.set_trace()
 
+    # 2. The second constraint is the Dynamics constraint
     for i in range(0,Grids-1):
-        # Extract the coefficients for these Grids-1 splines
-        # For init and end on this segment
+        Robostate_Front = StateNDot_Traj[:,i]
+        Robostate_Back = StateNDot_Traj[:,(i+1)]
+        Ctrl_Front = Ctrl_Traj[:,i]
+        Ctrl_Back = Ctrl_Traj[:,(i+1)]
+        Contact_Force_Front = Contact_Force_Traj[:,i]
+        Contact_Force_Back = Contact_Force_Traj[:,(i+1)]
+        Robotstate_Mid, Acc_Mid = Robot_StateNDot_MidNAcc(robot, T, Robostate_Front, Robostate_Back, Ctrl_Front, Ctrl_Back, Contact_Force_Front, Contact_Force_Back, ObjNConstraint_Val, ObjNConstraint_Type)
 
-        Pos_init, Vel_init, Acc_init, VelfromPos_init = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 0)
-        Pos_end,  Vel_end,  Acc_end,  VelfromPos_end  = StateNDot_Coeff2PosVelAcc(T, StateNDot_Coeff, i, 1)
+        Robot_ConfigNVel_Update(robot, Robotstate_Mid)
+        D_q_Mid = np.asarray(robot.getMassMatrix())
+        C_q_qdot_Mid = np.asarray(robot.getCoriolisForces())
+        G_q_Mid = np.asarray(robot.getGravityForces((0,0,-9.8)))
+        End_Effector_Jac_Mid = End_Effector_Jacobian(robot)
+        End_Effector_JacTrans_Mid = np.transpose(End_Effector_Jac_Mid)
+        B_q_Mid = B_q_Matrix()
 
-        robotstate_init = List_Append(Pos_init, Vel_init)
-        robotstate_end = List_Append(Pos_end, Vel_end)
+        Dynamics_LHS_Mid_1 = np.dot(D_q_Mid, Dimension_Recovery(Acc_Mid))
+        Dynamics_LHS_Mid_2 = np.add(Dynamics_LHS_Mid_1, np.add(C_q_qdot_Mid, G_q_Mid))
+        Dynamics_LHS_Mid_2 = Dimension_Reduction(Dynamics_LHS_Mid_2)
 
-        KE_i = KE_fn(robotstate_end)
-        KE_tot.append(KE_i)
-
-        Ctrl_init = Control_Coeff2Vec(T, Ctrl_Coeff, i, 0)
-        Ctrl_end = Control_Coeff2Vec(T, Ctrl_Coeff, i, 1)
-
-        Contact_Force_init = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 0)
-        Contact_Force_end = Contact_Force_Coeff2Vec(T, Contact_Force_Coeff, i, 1)
-
-        # 1. Constraint on smoothness at both edges
-        # Robotstate, Control and Control force
-        for j in range(0,len(Pos_init)):
-            ObjNConstraint_Val.append(Pos_init[j] - Pos_ref[j])
+        Dynamics_RHS_Mid_1 = np.dot(End_Effector_JacTrans_Mid, np.add(0.5 * Contact_Force_Front, 0.5 * Contact_Force_Back))
+        Dynamics_RHS_Mid_2 = np.dot(B_q_Mid, np.add(0.5 * Ctrl_Front, 0.5 * Ctrl_Back))
+        for i in range(0,13):
+            ObjNConstraint_Val.append(Dynamics_LHS_Mid_2[i] - Dynamics_RHS_Mid_2[i])
             ObjNConstraint_Type.append(0)
-            ObjNConstraint_Val.append(Vel_init[j] - Vel_ref[j])
-            ObjNConstraint_Type.append(0)
-            ObjNConstraint_Val.append(VelfromPos_init[j] - Vel_init[j])
-            ObjNConstraint_Type.append(0)
-            ObjNConstraint_Val.append(Pos_init[j] - robotstate_lb[j])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(robotstate_ub[j] - Pos_init[j])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(Vel_init[j] - robotstate_lb[j+len(Act_Link_Ind)])
-            ObjNConstraint_Type.append(1)
-            ObjNConstraint_Val.append(robotstate_ub[j+len(Act_Link_Ind)] - Vel_init[j])
-            ObjNConstraint_Type.append(1)
-            if j<len(Ctrl_Link_Ind):
-                ObjNConstraint_Val.append(Ctrl_init[j] - Ctrl_ref[j])
-                ObjNConstraint_Type.append(0)
-                ObjNConstraint_Val.append(Ctrl_init[j] - control_lb[j])
-                ObjNConstraint_Type.append(1)
-                ObjNConstraint_Val.append(control_ub[j] - Ctrl_init[j])
-                ObjNConstraint_Type.append(1)
-            if j<2*len(End_Effector_Ind):
-                ObjNConstraint_Val.append(Contact_Force_init[j] - Contact_Force_ref[j])
-                ObjNConstraint_Type.append(1)
 
-        # New references get updated
-        Pos_ref = Pos_end
-        Vel_ref = Vel_end
-        Ctrl_ref = Ctrl_end
-        Contact_Force_ref = Contact_Force_end
-
-        # 2. Dynamics Constraints
-        # 3. Complementarity constraints: Distance!
-        # 4. Complementarity constraints: Contact Force!
-        # 5. Contact force feasibility constraints: normal force should be positive and the friction cone constraint has to be satisfied
-        # 6. Contact maintenance constraint: the previous unchanged active constraint have to be satisfied
-        # All the above constraint will be taken care of
-
-        Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_init, Vel_init, Acc_init, Ctrl_init, Contact_Force_init, sigma_tran, ObjNConstraint_Val, ObjNConstraint_Type)
-
-        # End stage constraint
-        if i==Grids-1:
-            Real_ObjNConstraint_Stage(world.robot(0), Node_i, Node_i_child, T, Pos_end, Vel_end, Acc_end, Ctrl_end, Contact_Force_end, sigma_goal, ObjNConstraint_Val, ObjNConstraint_Type)
+    # 3. Complementarity constraint: Distance!
+    for i in range(0, Grids):
+        Robostate_i = StateNDot_Traj[:,i]
+        Robot_ConfigNVel_Update(robot, Robostate_i)
+        sigma = sigma_tran
+        if (i == Grids-1):
+            sigma = sigma_goal
+        ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(robot, sigma, ObjNConstraint_Val, ObjNConstraint_Type)
+    # 4. Complementarity constraint: Contact Force!
+    for i in range(0, Grids):
+        Contact_Force_i = Contact_Force_Traj[:,i]
+        sigma = sigma_tran
+        if (i == Grids-1):
+            sigma = sigma_goal
+            ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Complem_Constraint(Contact_Force_i, sigma, ObjNConstraint_Val, ObjNConstraint_Type)
+    # 5. Contact Force Feasibility Constraint
+    for i in range(0, Grids):
+        Robostate_i = StateNDot_Traj[:,i]
+        Robot_ConfigNVel_Update(robot, Robostate_i)
+        Contact_Force_i = Contact_Force_Traj[:,i]
+        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Feasibility_Constraint(robot, Robostate_i, Contact_Force_i, ObjNConstraint_Val, ObjNConstraint_Type)
+    # 6. Contact maintenance constraint: the previous unchanged active constraint have to be satisfied
+    for i in range(0, Grids):
+        Robostate_i = StateNDot_Traj[:,i]
+        Robot_ConfigNVel_Update(robot, Robostate_i)
+        ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(robot, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
 
     # Final computation is to update the objective function value and add constraint
     ObjNConstraint_Val[0] = Obj_Cal(KE_tot, T)
-    ObjNConstraint_Val.append(KE_Const - KE_tot[0])
+    ObjNConstraint_Val.append(KE_Const - KE_tot[-1])
     ObjNConstraint_Type.append(1)
 
     # ipdb.set_trace()
     return ObjNConstraint_Val, ObjNConstraint_Type
-def Real_ObjNConstraint_Stage(robot, Node_i, Node_i_child, T, Pos, Vel, Acc, Ctrl, Contact_Force, sigma, ObjNConstraint_Val, ObjNConstraint_Type):
-    # This function will compute the 2 to 6 constraints
 
-    # 2. Dynamics Constraints
-    temp_result = Dynamics_Constraint(robot, T, Pos, Vel, Acc, Ctrl, Contact_Force)
-    for j in range(0,len(temp_result)):
-        ObjNConstraint_Val.append(temp_result[j])
-        ObjNConstraint_Type.append(0)
+def Robot_StateNDot_MidNAcc(robot, T, Robostate_Front, Robostate_Back, Ctrl_Front, Ctrl_Back, Contact_Force_Front, Contact_Force_Back, ObjNConstraint_Val, ObjNConstraint_Type):
 
-    # 3. Complementarity constraints: Distance!
-    ObjNConstraint_Val, ObjNConstraint_Type = Distance_Velocity_Constraint(robot, sigma, ObjNConstraint_Val, ObjNConstraint_Type)
+    # Front Dynamics
+    Robot_ConfigNVel_Update(robot, Robostate_Front)
+    D_q_Front = np.asarray(robot.getMassMatrix())
+    C_q_qdot_Front = np.asarray(robot.getCoriolisForces())
+    G_q_Front = np.asarray(robot.getGravityForces((0,0,-9.8)))
+    End_Effector_Jac_Front = End_Effector_Jacobian(robot)
+    End_Effector_JacTrans_Front = np.transpose(End_Effector_Jac_Front)
+    B_q_Front = B_q_Matrix()
 
-    # 4. Complementarity constraints: Contact Force!
-    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Complem_Constraint(Contact_Force, sigma, ObjNConstraint_Val, ObjNConstraint_Type)
+    # Back Dynamics
+    Robot_ConfigNVel_Update(robot, Robostate_Back)
+    D_q_Back = np.asarray(robot.getMassMatrix())
+    C_q_qdot_Back = np.asarray(robot.getCoriolisForces())
+    G_q_Back = np.asarray(robot.getGravityForces((0,0,-9.8)))
+    End_Effector_Jac_Back = End_Effector_Jacobian(robot)
+    End_Effector_JacTrans_Back = np.transpose(End_Effector_Jac_Back)
+    B_q_Back = B_q_Matrix()
 
-    # 5. Contact force feasibility constraints: normal force should be positive and the friction cone constraint has to be satisfied
-    robotstate = List_Append(Pos, Vel)
-    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Force_Feasibility_Constraint(robot, robotstate, Contact_Force, ObjNConstraint_Val, ObjNConstraint_Type)
+    Acc_Front = AccelerationFromMatrices(D_q_Front, C_q_qdot_Front, G_q_Front, End_Effector_JacTrans_Front, Contact_Force_Front, B_q_Front, Ctrl_Front)
+    Acc_Back = AccelerationFromMatrices(D_q_Back, C_q_qdot_Back, G_q_Back, End_Effector_JacTrans_Back, Contact_Force_Back, B_q_Back, Ctrl_Back)
 
-    # 6. Contact maintenance constraint: the previous unchanged active constraint have to be satisfied
-    ObjNConstraint_Val, ObjNConstraint_Type = Contact_Maintenance(robot, Node_i, Node_i_child, ObjNConstraint_Val, ObjNConstraint_Type)
+    Robotstate_Mid = np.zeros(26)
+    Acc_Mid = np.zeros(13)
 
-    return ObjNConstraint_Val, ObjNConstraint_Type
+    # 1. Calculate the Robotstate_Mid_Acc Pos
+    for i in range(0,13):
+        x_init = Robostate_Front[i]
+        x_end = Robostate_Back[i]
+        xdot_init = Robostate_Front[(i+13)]
+        xdot_end = Robostate_Back[(i+13)]
+        pos_a, pos_b, pos_c, pos_d = CubicSpline_Coeff(T, x_init, x_end, xdot_init, xdot_end)
+        pos_mid, vel_mid, acc_mid = CubicSpline_PosVelAcc4(T, pos_a, pos_b, pos_c, pos_d, 0.5)
+        Robotstate_Mid[i] = pos_mid
+    # 2. Calculate the Robotstate_Mid_Acc Vel
+    for i in range(0,13):
+        xdot_init = Robostate_Front[(i+13)]
+        xdot_end = Robostate_Back[(i+13)]
+        xddot_init = Acc_Front[i]
+        xddot_end = Acc_Back[i]
+        vel_a, vel_b, vel_c, vel_d = CubicSpline_Coeff(T, xdot_init, xdot_end, xddot_init, xddot_end)
+        pos_mid, vel_mid, acc_mid = CubicSpline_PosVelAcc4(T, vel_a, vel_b, vel_c, vel_d, 0.5)
+        Robotstate_Mid[(i+13)] = pos_mid
+        Acc_Mid[i] = vel_mid
+    # Add constraint on the magnitude of acceleration
+    for i in range(0,10):
+        ObjNConstraint_Val.append(Acc_Front[(i+3)]);
+        ObjNConstraint_Type.append(2);
+        ObjNConstraint_Val.append(Acc_Mid[(i+3)]);
+        ObjNConstraint_Type.append(2);
+        ObjNConstraint_Val.append(Acc_Back[(i+3)]);
+        ObjNConstraint_Type.append(2);
+    return Robotstate_Mid, Acc_Mid
+
+def AccelerationFromMatrices(D_q_Front, C_q_qdot_Front, G_q_Front, End_Effector_JacTrans_Front, Contact_Force_Front, B_q_Front, Ctrl_Front):
+    Dynamics_RHS_Front_1 = np.dot(End_Effector_JacTrans_Front, Contact_Force_Front)
+    Dynamics_RHS_Front_1 = Dimension_Reduction(Dynamics_RHS_Front_1)
+    Dynamics_RHS_Front_2 = np.dot(B_q_Front, Ctrl_Front)
+    Dynamics_RHS_Front_3 = np.add(C_q_qdot_Front, G_q_Front)
+    Dynamics_RHS_Front_3 = Dimension_Reduction(Dynamics_RHS_Front_3)
+
+    Dynamics_RHS_Front = np.subtract(np.add(Dynamics_RHS_Front_1,Dynamics_RHS_Front_2), Dynamics_RHS_Front_3)
+    Dynamics_RHS_Front = Dimension_Recovery(Dynamics_RHS_Front)
+    Acc_Front = np.dot(np.linalg.inv(D_q_Front),Dynamics_RHS_Front)
+    Acc_Front = Dimension_Reduction(Acc_Front)
+    return Acc_Front
+
+def B_q_Matrix():
+    # This function provides the B_q matrix which is a constant matrix for this problem
+    B_q_Upper = np.array([[0,0,0,0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+    B_q_Lower = np.eye(10,dtype = float)
+    B_q = np.concatenate([B_q_Upper, B_q_Lower])
+    # ipdb.set_trace()
+    return B_q
 def Obj_Cal(KE_tot, T):
     # This function is used to calculate the quadratic sum of the rate of the change of the kinetic energy
     dt = T/(Grids - 1) * 1.0
@@ -593,21 +583,7 @@ def Contact_Force_Complem_Constraint(Contact_Force, sigma_i, ObjNConstraint_Val,
         ObjNConstraint_Val.append(temp_result[i])
         ObjNConstraint_Type.append(0)
     return ObjNConstraint_Val, ObjNConstraint_Type
-def Dynamics_Constraint(robot, T, Pos, Vel, Acc, Ctrl, Contact_Force):
-    D_q, C_q_qdot, G_q, End_Effector_JacTrans = Dynamics_Matrics(robot, Pos, Vel, Acc)
-    Acc = Dimension_Recovery(Acc)
-    Ctrl = np.append(np.array([0,0,0]), Ctrl)
-    Ctrl.shape = (len(Act_Link_Ind),1)
-    Dynamics_LHS = np.add(np.add(np.dot(D_q, Acc), C_q_qdot), G_q)
-    Contact_Force_Full = np.dot(End_Effector_JacTrans, Contact_Force)
-    Contact_Sim = np.zeros(len(Act_Link_Ind))
-    for i in range(0, len(Act_Link_Ind)):
-        Contact_Sim[i] = Contact_Force_Full[Act_Link_Ind[i]]
-    temp_result = np.zeros(len(Act_Link_Ind))
-    for i in range(0, len(Act_Link_Ind)):
-        temp_result[i] = Dynamics_LHS[Act_Link_Ind[i]] - Contact_Sim[i] - Ctrl[i]
-    # ipdb.set_trace()
-    return temp_result
+
 def Dynamics_Matrics(robot, Pos, Vel, Acc):
     Acc = Dimension_Recovery(Acc)
     robotstate = np.append(Pos, Vel)
@@ -623,21 +599,21 @@ def Contact_Maintenance(robot, Node_i, Node_i_child, ObjNConstraint_Val, ObjNCon
     sigma_i = Sigma_Modi_De(Node_i.sigma)
     sigma_i_child = Sigma_Modi_De(Node_i_child.sigma)
     End_Effector_Pos = get_End_Effector_Pos(robot)         # 6 * 2 by 1
-    End_Effector_Vel = get_End_Effector_Vel(robot)         # 6 * 2 by 1
+    # End_Effector_Vel = get_End_Effector_Vel(robot)         # 6 * 2 by 1
     End_Effector_Pos_ref = Node_i.End_Effector_Pos
-    End_Effector_Vel_ref = Node_i.End_Effector_Vel
+    # End_Effector_Vel_ref = Node_i.End_Effector_Vel
     Maint_Matrix = np.diag([ sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], sigma_i[0] * sigma_i_child[0], \
                              sigma_i[1] * sigma_i_child[1], sigma_i[1] * sigma_i_child[1], sigma_i[1] * sigma_i_child[1], sigma_i[1] * sigma_i_child[1], \
                              sigma_i[2] * sigma_i_child[2], sigma_i[2] * sigma_i_child[2], sigma_i[3] * sigma_i_child[3], sigma_i[3] * sigma_i_child[3]])
     End_Effector_Pos_Maint = np.subtract(End_Effector_Pos_ref, End_Effector_Pos)
-    End_Effector_Vel_Maint = np.subtract(End_Effector_Vel_ref, End_Effector_Vel)
+    # End_Effector_Vel_Maint = np.subtract(End_Effector_Vel_ref, End_Effector_Vel)
     End_Effector_Pos_Maint_Val = np.dot(Maint_Matrix, End_Effector_Pos_Maint)
-    End_Effector_Vel_Maint_Val = np.dot(Maint_Matrix, End_Effector_Vel_Maint)
+    # End_Effector_Vel_Maint_Val = np.dot(Maint_Matrix, End_Effector_Vel_Maint)
     for i in range(0, len(End_Effector_Pos_ref)):
         ObjNConstraint_Val.append(End_Effector_Pos_Maint_Val[i])
         ObjNConstraint_Type.append(0)
-        ObjNConstraint_Val.append(End_Effector_Vel_Maint_Val[i])
-        ObjNConstraint_Type.append(0)
+        # ObjNConstraint_Val.append(End_Effector_Vel_Maint_Val[i])
+        # ObjNConstraint_Type.append(0)
     return ObjNConstraint_Val, ObjNConstraint_Type
 def Relative_Dist(hrp2_robot):
     # This function is used to measure the relative distance between the robot to the nearest world feature
@@ -683,77 +659,97 @@ def Foot_Orientation(hrp2_robot):
     return Rigt_foot_Ori,Left_foot_Ori
 def Nodes_Optimization_fn(world, Node_i, Node_i_child):
     # // This function will optimize the joint trajectories to minimize the robot kinetic energy while maintaining a smooth transition fashion
-    Seed_Flag, T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff = Seed_Guess_Gene(world, Node_i, Node_i_child)
-    # ipdb.set_trace()
+    Seed_Flag, T, StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj = Seed_Guess_Gene(world, Node_i, Node_i_child)
     if Seed_Flag == 1:
-        Opt_Var_Num = Opt_Var_Num_fn(StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff) + 1
-        Seed_Guess_vec = Seed_Guess_Zip(T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff)
-        xlb = -Inf * np.ones(Opt_Var_Num)
-        xub = Inf * np.ones(Opt_Var_Num)
-        xlb[0] = mini
-        xub[0] = 0.1 * Grids
+        Opt_Var_Num = Opt_Var_Num_fn(StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj) + 1
+        Seed_Guess_vec = Seed_Guess_Zip(T, StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj)
+        # ipdb.set_trace()
+
+        xlow = -Inf * np.ones(Opt_Var_Num)
+        xupp = Inf * np.ones(Opt_Var_Num)
+
+        # This is the bound for the time
+        xlow[0] = 0.5
+        xupp[0] = 2.0
+        Index_Count = 1
+        for i in range(0, Grids):
+            for j in range(0,26):
+                xlow[Index_Count] = robotstate_lb[j]
+                xupp[Index_Count] = robotstate_ub[j]
+                Index_Count = Index_Count + 1
+
+        for i in range(0, Grids):
+            for j in range(0,10):
+    			xlow[Index_Count] = control_lb[j]
+    			xupp[Index_Count] = control_ub[j]
+    			Index_Count = Index_Count + 1
+
         # Optimization problem setup
         Real_Optimization_Prob = Real_Optimization_fn(world, Node_i, Node_i_child, Seed_Guess_vec)
-        Real_Optimization_Prob.xlb = xlb
-        Real_Optimization_Prob.xub = xub
+        Real_Optimization_Prob.xlb = xlow
+        Real_Optimization_Prob.xub = xupp
         ObjNConstraint_Val, ObjNConstraint_Type = Real_ObjNConstraint(world, Node_i, Node_i_child, Seed_Guess_vec)
         lb, ub = ObjNCon_Bds(ObjNConstraint_Type)
         Real_Optimization_Prob.lb = lb
         Real_Optimization_Prob.ub = ub
         cfg = snoptConfig()
         cfg.majorIterLimit = 10000
-        cfg.minorIterLimit = 10000
+        cfg.minorIterLimit = 200000
         cfg.iterLimit = 500000
         cfg.feaTol = 1e-5
         cfg.optTol = 1e-5
-        ipdb.set_trace()
+        # ipdb.set_trace()
         cfg.printLevel = 1
         cfg.printFile = "result.txt"
         slv = solver(Real_Optimization_Prob, cfg)
         rst = slv.solveGuess(Seed_Guess_vec)
+        with open('Opt_Soln.txt', 'w') as the_file:
+            for i in range(0,Opt_Var_Num):
+                the_file.write(rst.sol[i])
         return rst.sol, rst.sol
-def Seed_Guess_Zip(T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff):
+def Seed_Guess_Zip(T, StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj):
     # This function is used to zip the seed guess into a single column vector
     Seed_Guess = np.array([T])
-    a,b = StateNDot_Coeff.shape
+    a,b = StateNDot_Traj.shape
     for i in range(0,b):
-        Seed_Guess = np.append(Seed_Guess, StateNDot_Coeff[:,i])
-    a,b = Ctrl_Coeff.shape
+        Seed_Guess = np.append(Seed_Guess, StateNDot_Traj[:,i])
+    a,b = Ctrl_Traj.shape
     for i in range(0,b):
-        Seed_Guess = np.append(Seed_Guess, Ctrl_Coeff[:,i])
-    a,b = Contact_Force_Coeff.shape
+        Seed_Guess = np.append(Seed_Guess, Ctrl_Traj[:,i])
+    a,b = Contact_Force_Traj.shape
     for i in range(0,b):
-        Seed_Guess = np.append(Seed_Guess, Contact_Force_Coeff[:,i])
+        Seed_Guess = np.append(Seed_Guess, Contact_Force_Traj[:,i])
     return Seed_Guess
 def Seed_Guess_Unzip(Opt_Seed):
     # This function is used to unzip the Opt_Seed back into the coefficients
     T = Opt_Seed[0]
     # First is to retrieve the stateNdot coefficients from the Opt_Seed: 1 to 1 + (Grids - 1) * 26 * 4
     Var_Init = 1
-    Var_Length = (Grids-1) * 26 * 4
+    Var_Length = (Grids) * 26
     Var_End = Var_Init + Var_Length
-    StateNDot_Coeff = Opt_Seed[Var_Init:Var_End]
-    StateNDot_Coeff = np.reshape(StateNDot_Coeff, (Grids-1,26 * 4)).transpose()
+    StateNDot_Traj = Opt_Seed[Var_Init:Var_End]
+    StateNDot_Traj = np.reshape(StateNDot_Traj, (Grids, 26))
 
-    Var_Init = Var_End - 1
-    Var_Length = (Grids-1) * 10 * 2
+    Var_Init = Var_End
+    Var_Length = (Grids) * 10
     Var_End = Var_Init + Var_Length
-    Ctrl_Coeff = Opt_Seed[Var_Init:Var_End]
-    Ctrl_Coeff = np.reshape(Ctrl_Coeff, (Grids-1, 10*2)).transpose()
+    Ctrl_Traj = Opt_Seed[Var_Init:Var_End]
+    Ctrl_Traj = np.reshape(Ctrl_Traj, (Grids, 10)).transpose()
 
-    Var_Init = Var_End - 1
-    Var_Length = (Grids-1) * 12 * 2
+    Var_Init = Var_End
+    Var_Length = (Grids) * 12
     Var_End = Var_Init + Var_Length
-    Contact_Force_Coeff = Opt_Seed[Var_Init:Var_End]
-    Contact_Force_Coeff = np.reshape(Contact_Force_Coeff, (Grids-1, 12*2)).transpose()
-    return T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff
-def Opt_Var_Num_fn(StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff):
+    Contact_Force_Traj = Opt_Seed[Var_Init:Var_End]
+    Contact_Force_Traj = np.reshape(Contact_Force_Traj, (Grids, 12)).transpose()
+    # ipdb.set_trace()
+    return T, StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj
+def Opt_Var_Num_fn(StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj):
     Opt_Var_Num = 0
-    a,b = StateNDot_Coeff.shape
+    a,b = StateNDot_Traj.shape
     Opt_Var_Num = Opt_Var_Num + a * b
-    a,b = Ctrl_Coeff.shape
+    a,b = Ctrl_Traj.shape
     Opt_Var_Num = Opt_Var_Num + a * b
-    a,b = Contact_Force_Coeff.shape
+    a,b = Contact_Force_Traj.shape
     Opt_Var_Num = Opt_Var_Num + a * b
     return Opt_Var_Num
 def Seed_Guess_Gene(world, Node_i, Node_i_child):
@@ -761,13 +757,13 @@ def Seed_Guess_Gene(world, Node_i, Node_i_child):
     T = 0.5
     # The first step is to generate a feasible configuration that can satisfy the contact mode in the node i child
     Seed_Flag, Seed_Config = Seed_Guess_Gene_Robotstate(world, Node_i, Node_i_child)
+    # ipdb.set_trace()
+
     StateNDot_Traj = np.zeros(shape = (len(Seed_Config), Grids))
     Ctrl_Traj = np.zeros(shape = (10, Grids))
     Contact_Force_Traj = np.zeros(shape = (2*len(End_Effector_Ind), Grids))
 
     StateNDot_Coeff = np.zeros(shape = (4*len(Seed_Config), Grids-1))               # 4*26 x Grids-1
-    Ctrl_Coeff = np.zeros(shape = (2*10, Grids-1))                                  # 4*10 x Grids-1
-    Contact_Force_Coeff = np.zeros(shape = (4*len(End_Effector_Ind), Grids-1))      # 4*12 x Grids-1
     if Seed_Flag == 1:
         # 1. Initialization of the StateNdot
         # For each variable, conduct a linspace interpolation
@@ -800,15 +796,7 @@ def Seed_Guess_Gene(world, Node_i, Node_i_child):
             Contact_Force_Traj[:,i+1] = Contact_Force_end
             Ctrl_Traj[:,i] = Control_init
             Ctrl_Traj[:,i+1] = Control_end
-            for j in range(0,len(Contact_Force_end)):
-                cf_a, cf_b = Linear_Coeff(Contact_Force_init[j], Contact_Force_end[j])
-                Contact_Force_Coeff[2*j,i] = cf_a
-                Contact_Force_Coeff[2*j+1,i] = cf_b
-            for z in range(0,len(Control_end)):
-                ctrl_a, ctrl_b = Linear_Coeff(Control_init[z], Control_end[z])
-                Ctrl_Coeff[2*z,i] = ctrl_a
-                Ctrl_Coeff[2*z+1,i] = ctrl_b
-    return Seed_Flag, T, StateNDot_Coeff, Ctrl_Coeff, Contact_Force_Coeff
+    return Seed_Flag, T, StateNDot_Traj, Ctrl_Traj, Contact_Force_Traj
 def Linear_Coeff(value_a, value_b):
     b = value_a
     a = value_b - value_a
@@ -892,9 +880,9 @@ def CubicSpline_PosVelAcc8(T, x_a, x_b, x_c, x_d, xdot_a, xdot_b, xdot_c, xdot_d
 def CubicSpline_Coeff(T, x_init, x_end, xdot_init, xdot_end):
     # This funciton is used to calculate the coefficients of the cubic spliine given two edge values: x and xdot
     # y(s) = a*s^3 + b*s^2 + c*s + d over dt
-    a = 2*x_init - 2*x_end - T*x_init + T*xdot_end + T*xdot_init
-    b = 3*x_end - 3*x_init + 2*T*x_init - T*xdot_end - 2*T*xdot_init
-    c = -T*(x_init - xdot_init)
+    a = 2*x_init - 2*x_end + T*xdot_end + T*xdot_init
+    b = 3*x_end - 3*x_init - T*xdot_end - 2*T*xdot_init
+    c = T * xdot_init
     d = x_init
     return a, b, c, d
 def CubicSpline_PosVelAcc4(T,a,b,c,d,s):
@@ -939,11 +927,15 @@ def ObjNCon_Bds(ObjNConstraint_Type):
     lb = np.zeros(len(ObjNConstraint_Type))
     ub = np.zeros(len(ObjNConstraint_Type))
     for i in range(0,len(ObjNConstraint_Type)):
-        lb[i] = 0.0
-        if ObjNConstraint_Type[i]==0:
-            ub[i] = 0.0
+        if(ObjNConstraint_Type[i]>1.0):
+            lb[i] = -5.0
+            ub[i] = 5.0
         else:
-            ub[i] = Inf
+            lb[i] = 0.0
+            if(ObjNConstraint_Type[i]>0.0):
+                ub[i] = Inf
+            else:
+                ub[i] = 0.0
     return lb, ub
 def Control_Bounds(world,Control_len):
     hrp2_robot = world.robot(0)
@@ -992,7 +984,7 @@ def Sigma_Modi_De(sigma_i):
     sigma_full[2] = sigma_i[4]
     sigma_full[3] = sigma_i[5]
     return sigma_full
-def Sigma_Expansion(sigma_i, ):
+# def Sigma_Expansion(sigma_i, ):
     # This function is used to expande the current sigma to
 def Node_Expansion(Node_i):
     # % This function is the main function used to expansion the given node to
@@ -1005,9 +997,9 @@ def Node_Expansion(Node_i):
     # Rght_Foot_sigma = sigma_i[1]
     # Left_Hand_sigma = sigma_i[2]
     # Rght_Hand_sigma = sigma_i[3]
-    for i range(0,len(sigma_i)):
+    for i in range(0,len(sigma_i)):
         sigma_temp = sigma_i
-        sigma_temp[i] = !sigma_temp[i]
+        sigma_temp[i] = not sigma_temp[i]
         sigma_i_children = np.append(sigma_i_children, sigma_temp)
     sigma_i_children = sigma_i_children[len(sigma_i):]
     return sigma_i_children
@@ -1076,45 +1068,45 @@ def main():
         # */
         Node_i, Frontier_Nodes, Frontier_Nodes_Cost = Pop_Node(Frontier_Nodes, Frontier_Nodes_Cost)
         Self_Opt_Flag, Self_Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i)       # Node_Self_Opt
-        if Self_Opt_Flag == 1:
-            file_name = "Node " + str(Node_i_child.Node_Index) + " Self_Opt_Soln.txt"
-            file_object  = open(file_name, 'w')
-            for i in range(0,len(Self_Opt_Soln)):
-                file_object.write(str(Self_Opt_Soln[i]))
-                file_object.write('\n')
-            file_object.close()
-            # Retrieve the parent node index
-            Node_temp = Node_i
-            file_name = "Node Sequence.txt"
-            file_object  = open(file_name, 'w')
-            while len(Node_temp.Parent_Node)>0:
-                file_object.write(str(Node_temp.Parent_Node))
-                file_object.write('\n')
-                Node_temp = Node_temp.Parent_Node
-            file_object.close()
-            break
-        else:
-            # THe current node needs to be expanded
-            sigma_i_children = Node_Expansion(Node_i) # Here sigma_i_children is a 4*4 x 1 array
-            for i range(0,len(sigma_i_children)/4):
-                sigma_i_child = Sigma_Modi_In(sigma_i_children[4*i:4*i+4])
-                Node_i_child = Tree_Node(world.robot(0), sigma_i_child, Node_i.robotstate)
-                Opt_Flag, Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i_child)       # Nodes_Connectivity_Opt
-                if Opt_Flag == 1:
-                    Node_i_child_robotstate, Node_i_child_KE = Spline2RobotstateNKe(Opt_Flag, Grids, Node_i.sigma, sigma_i_child, world.robot(0))
-                    Node_i_child.robotstate = Node_i_child_robotstate
-                    Node_i_child.KE = Node_i_child_KE
-                    Node_i_child.Node_Index = len(All_Nodes)-1
-                    Node_i_child.Add_Parent(Node_i)
-                    Node_i.Add_Child(Node_i_child)
-                    All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost = Node_Add(All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost, Node_i_child)
-                    file_name = "Node " + str(Node_i_child.Node_Index) + " Opt_Soln.txt"
-                    file_object  = open(file_name, 'w')
-                    for i in range(0,len(Opt_Soln)):
-                        file_object.write(str(Opt_Soln[i]))
-                        file_object.write('\n')
-                    file_object.close()
-                else:
-                    pass
+        # if Self_Opt_Flag == 1:
+        #     file_name = "Node " + str(Node_i_child.Node_Index) + " Self_Opt_Soln.txt"
+        #     file_object  = open(file_name, 'w')
+        #     for i in range(0,len(Self_Opt_Soln)):
+        #         file_object.write(str(Self_Opt_Soln[i]))
+        #         file_object.write('\n')
+        #     file_object.close()
+        #     # Retrieve the parent node index
+        #     Node_temp = Node_i
+        #     file_name = "Node Sequence.txt"
+        #     file_object  = open(file_name, 'w')
+        #     while len(Node_temp.Parent_Node)>0:
+        #         file_object.write(str(Node_temp.Parent_Node))
+        #         file_object.write('\n')
+        #         Node_temp = Node_temp.Parent_Node
+        #     file_object.close()
+        #     break
+        # else:
+        #     # THe current node needs to be expanded
+        #     sigma_i_children = Node_Expansion(Node_i) # Here sigma_i_children is a 4*4 x 1 array
+        #     for i range(0,len(sigma_i_children)/4):
+        #         sigma_i_child = Sigma_Modi_In(sigma_i_children[4*i:4*i+4])
+        #         Node_i_child = Tree_Node(world.robot(0), sigma_i_child, Node_i.robotstate)
+        #         Opt_Flag, Opt_Soln = Nodes_Optimization_fn(world, Node_i, Node_i_child)       # Nodes_Connectivity_Opt
+        #         if Opt_Flag == 1:
+        #             Node_i_child_robotstate, Node_i_child_KE = Spline2RobotstateNKe(Opt_Flag, Grids, Node_i.sigma, sigma_i_child, world.robot(0))
+        #             Node_i_child.robotstate = Node_i_child_robotstate
+        #             Node_i_child.KE = Node_i_child_KE
+        #             Node_i_child.Node_Index = len(All_Nodes)-1
+        #             Node_i_child.Add_Parent(Node_i)
+        #             Node_i.Add_Child(Node_i_child)
+        #             All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost = Node_Add(All_Nodes, Frontier_Nodes, Frontier_Nodes_Cost, Node_i_child)
+        #             file_name = "Node " + str(Node_i_child.Node_Index) + " Opt_Soln.txt"
+        #             file_object  = open(file_name, 'w')
+        #             for i in range(0,len(Opt_Soln)):
+        #                 file_object.write(str(Opt_Soln[i]))
+        #                 file_object.write('\n')
+        #             file_object.close()
+        #         else:
+        #             pass
 if __name__ == "__main__":
     main()
